@@ -1,0 +1,187 @@
+/* 全局样式 */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', SimSun, sans-serif;
+  background-color: #f5f7fa;
+  color: #333;
+}
+
+#app {
+  height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  margin-top: 0;
+  color: #303133;
+}
+
+/* 容器样式 */
+.el-container {
+  height: 100%;
+}
+
+.el-header {
+  background-color: #409EFF;
+  color: white;
+  line-height: 60px;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.el-aside {
+  background-color: #fff;
+  border-right: 1px solid #e6e6e6;
+}
+
+.el-main {
+  padding: 20px;
+  background-color: #f5f7fa;
+}
+
+/* 菜单样式 */
+.menu {
+  height: 100%;
+  border-right: none;
+}
+
+/* 组件容器 */
+.component-container {
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 聊天界面 */
+.chat-container, .rag-container, .database-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 40px);
+}
+
+.chat-messages, .rag-messages, .database-console {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  border: 1px solid #ebeef5;
+}
+
+.message {
+  margin-bottom: 10px;
+  max-width: 80%;
+  padding: 10px;
+  border-radius: 8px;
+  position: relative;
+}
+
+.message.user {
+  align-self: flex-end;
+  background-color: #ecf5ff;
+  margin-left: auto;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background-color: #f5f7fa;
+}
+
+.message.system {
+  align-self: center;
+  background-color: #f0f9eb;
+  width: 100%;
+  text-align: center;
+  padding: 5px;
+}
+
+.message-content {
+  word-break: break-word;
+}
+
+.chat-input {
+  display: flex;
+  margin-top: 10px;
+}
+
+.chat-input .el-input {
+  flex: 1;
+  margin-right: 10px;
+}
+
+/* 代理工具区域 */
+.agent-tools {
+  background-color: #ecf5ff;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+/* 数据库示例查询 */
+.example-queries {
+  background-color: #f0f9eb;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+.example-queries .el-tag {
+  margin: 5px;
+  cursor: pointer;
+}
+
+/* 天气预报 */
+.weather-container {
+  height: 100%;
+}
+
+.weather-tabs {
+  height: 100%;
+}
+
+.weather-query {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.weather-query .el-input {
+  width: 200px;
+  margin-right: 10px;
+}
+
+.weather-result {
+  background-color: #f5f7fa;
+  padding: 15px;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.weather-data {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.schedule-list {
+  margin-top: 20px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .el-aside {
+    width: 100px !important;
+  }
+  
+  .message {
+    max-width: 95%;
+  }
+} 
