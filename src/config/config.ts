@@ -10,10 +10,11 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 
 // 使用Zod定义环境变量验证schema
 const envSchema = z.object({
-  // OpenAI API Key - 开发模式下可选
-  OPENAI_API_KEY: isDevelopment 
-    ? z.string().default('fake-api-key-for-dev') 
-    : z.string(),
+  // OpenAI API Key - 优先使用.env中的值，如果不存在则在开发环境下提供默认值
+  OPENAI_API_KEY: z.string().optional().default(process.env.OPENAI_API_KEY || (isDevelopment ? 'fake-api-key-for-dev' : '')),
+  
+  // OpenAI Base URL - 优先使用.env中的值，如果不存在则在开发环境下提供默认值
+  OPENAI_BASE_URL: z.string().optional().default(process.env.OPENAI_BASE_URL || (isDevelopment ? 'https://api.openai.com/v1' : '')),
   
   // 和风天气API Key - 开发模式下可选
   QWEATHER_KEY: isDevelopment 
@@ -64,7 +65,7 @@ export const VECTOR_STORE_DIR = path.join(DATA_DIR, 'vector_db');
 
 // LLM模型列表
 export const MODEL_LIST = {
-  GPT3_5: 'gpt-3.5-turbo',
+  GPT3_5: 'gpt-3.5-turbo-1106',
   GPT4: 'gpt-4',
   GPT4_TURBO: 'gpt-4-turbo-preview',
 } as const;

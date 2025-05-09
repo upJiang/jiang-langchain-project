@@ -17,6 +17,9 @@ export class LLMFactory {
       modelName: model,
       temperature,
       openAIApiKey: env.OPENAI_API_KEY,
+      configuration: {
+        baseURL: env.OPENAI_BASE_URL,
+      },
     });
   }
 

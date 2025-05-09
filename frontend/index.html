@@ -56,7 +56,7 @@
           <div v-if="activeIndex === '1'" class="component-container">
             <h2>基本对话链演示</h2>
             <div class="chat-container">
-              <div class="chat-messages" ref="chatMessages">
+              <div class="chat-messages" ref="chatMessagesContainer">
                 <div v-for="(msg, index) in chatMessages" :key="index" :class="['message', msg.role]">
                   <div class="message-content">{{ msg.content }}</div>
                 </div>
@@ -76,7 +76,7 @@
           <div v-if="activeIndex === '2'" class="component-container">
             <h2>代理与工具演示</h2>
             <div class="chat-container">
-              <div class="chat-messages" ref="agentMessages">
+              <div class="chat-messages" ref="agentMessagesContainer">
                 <div v-for="(msg, index) in agentMessages" :key="index" :class="['message', msg.role]">
                   <div class="message-content">{{ msg.content }}</div>
                 </div>
@@ -99,7 +99,7 @@
           <div v-if="activeIndex === '3'" class="component-container">
             <h2>RAG检索演示</h2>
             <div class="rag-container">
-              <div class="rag-messages" ref="ragMessages">
+              <div class="rag-messages" ref="ragMessagesContainer">
                 <div v-for="(msg, index) in ragMessages" :key="index" :class="['message', msg.role]">
                   <div class="message-content">{{ msg.content }}</div>
                 </div>
@@ -119,7 +119,7 @@
           <div v-if="activeIndex === '4'" class="component-container">
             <h2>数据库集成演示</h2>
             <div class="database-container">
-              <div class="database-console" ref="dbMessages">
+              <div class="database-console" ref="dbMessagesContainer">
                 <div v-for="(msg, index) in dbMessages" :key="index" :class="['message', msg.role]">
                   <div class="message-content">{{ msg.content }}</div>
                 </div>

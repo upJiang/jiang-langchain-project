@@ -5,8 +5,10 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "start:all": "npm run build && node server.js",
+    "dev:server": "nodemon --watch src --ext ts,js --exec ts-node src/index.ts",
+    "dev:web": "nodemon --watch server.js --watch frontend --ext js,html,css --exec node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -23,6 +25,8 @@
     "@types/node-schedule": "^2.1.7",
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.15.0",
+    "concurrently": "^9.1.2",
+    "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },
