@@ -52,6 +52,21 @@
                 <div class="progress-bar bg-success" role="progressbar" :style="{ width: '100%' }"></div>
               </div>
               
+              <!-- 添加已处理文档列表显示 -->
+              <div v-if="processedDocumentNames && processedDocumentNames.length > 0" class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span>已处理文档:</span>
+                  <span class="badge bg-primary">{{ processedDocumentNames.length }} 个</span>
+                </div>
+                <div class="document-list-container mt-2">
+                  <ul class="list-group list-group-flush small">
+                    <li v-for="(docName, index) in processedDocumentNames" :key="index" class="list-group-item py-1">
+                      <i class="bi bi-file-text me-1"></i> {{ docName }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span>文本块数量:</span>
                 <span class="badge bg-info">{{ chunksGenerated }} 个块</span>
@@ -75,26 +90,33 @@
             <i class="bi bi-sliders me-2"></i>查询设置
           </div>
           <div class="card-body">
-            <div class="mb-3">
-              <label for="similarityThreshold" class="form-label">相似度阈值: {{ similarityThreshold }}</label>
-              <input type="range" class="form-range" id="similarityThreshold" min="0" max="1" step="0.05" v-model="similarityThreshold">
-              <div class="form-text">较高的阈值可以过滤掉不太相关的文档</div>
-            </div>
-            
-            <div class="form-check mb-3">
-              <input class="form-check-input" type="checkbox" id="useGeneralModel" v-model="useGeneralModelFallback">
-              <label class="form-check-label" for="useGeneralModel">
-                无相关信息时使用通用模型
-              </label>
-              <div class="form-text">找不到相关文档时，直接使用通用模型回答</div>
-            </div>
-            
-            <div class="form-check mb-3">
-              <input class="form-check-input" type="checkbox" id="useMemory" v-model="useMemory">
-              <label class="form-check-label" for="useMemory">
-                启用对话记忆功能
-              </label>
-              <div class="form-text">AI会记住对话上下文，实现更自然的多轮对话</div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" v-model="useMemory" id="memoryToggle">
+                  <label class="form-check-label" for="memoryToggle">记忆对话历史</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" v-model="useGeneralModelFallback" id="generalModelToggle">
+                  <label class="form-check-label" for="generalModelToggle">无相关信息时使用通用模型</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" v-model="useWebSearch" id="webSearchToggle">
+                  <label class="form-check-label" for="webSearchToggle">启用网络搜索</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" v-model="useAgent" id="agentToggle">
+                  <label class="form-check-label" for="agentToggle">使用智能代理</label>
+                  <small class="text-muted d-block">自动判断是使用知识库还是网络搜索</small>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-2">
+                  <label for="similarityThreshold" class="form-label">相似度阈值: {{similarityThreshold}}</label>
+                  <input type="range" class="form-range" min="0" max="1" step="0.05" id="similarityThreshold" v-model="similarityThreshold">
+                  <div class="form-text">较高的值要求更精确的匹配，较低的值允许更宽松的匹配</div>
+                </div>
+              </div>
             </div>
             
             <div class="d-flex justify-content-between">
@@ -136,15 +158,36 @@
                 <div v-if="message.usedGeneralModel" class="general-model-badge mt-1">
                   <span class="badge bg-secondary">通用模型回答</span>
                 </div>
+                <div v-if="message.usedWebSearch" class="web-search-badge mt-1">
+                  <span class="badge bg-info">网络搜索</span>
+                </div>
               </div>
             </div>
             
             <div class="p-3 border-top">
-              <div class="input-group">
-                <input type="text" class="form-control" placeholder="请输入您的问题..." v-model="userQuery" @keyup.enter="sendQuery" :disabled="!vectorStorePath || isQueryProcessing">
-                <button class="btn btn-primary" @click="sendQuery" :disabled="!vectorStorePath || isQueryProcessing || !userQuery.trim()">
-                  <span v-if="isQueryProcessing" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <div class="input-group mb-3">
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  v-model="userQuery" 
+                  placeholder="输入您的问题..."
+                  @keyup.enter="sendQuery"
+                  :disabled="isQueryProcessing || !vectorStorePath"
+                >
+                <button 
+                  class="btn btn-primary" 
+                  @click="sendQuery" 
+                  :disabled="isQueryProcessing || !userQuery.trim() || !vectorStorePath"
+                >
+                  <span v-if="isQueryProcessing" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                   {{ isQueryProcessing ? '处理中...' : '发送' }}
+                </button>
+                <button 
+                  v-if="isQueryProcessing" 
+                  class="btn btn-danger" 
+                  @click="cancelQuery"
+                >
+                  取消
                 </button>
               </div>
               <div v-if="!vectorStorePath" class="form-text text-center mt-2">
@@ -178,11 +221,17 @@ const chatContainer = ref(null);
 const documentsProcessed = ref(0);
 const chunksGenerated = ref(0);
 const totalVectors = ref(0);
+const processedDocumentNames = ref([]);
 const appendToExisting = ref(false);
-const similarityThreshold = ref(0.6);
+const similarityThreshold = ref('0.6');
 const useGeneralModelFallback = ref(true);
-const sessionId = ref('');
+const useWebSearch = ref(false);
+const sessionId = ref(uuidv4());
 const useMemory = ref(true);
+const useAgent = ref(false);
+
+// 添加取消控制器
+let abortController = null;
 
 // 初始化会话ID
 onMounted(() => {
@@ -325,6 +374,17 @@ const uploadFiles = async () => {
     chunksGenerated.value += vectorizeResponse.data.chunksGenerated;
     totalVectors.value = vectorizeResponse.data.totalVectors || chunksGenerated.value;
     
+    // 保存已处理的文档名
+    if (vectorizeResponse.data.processedDocumentNames) {
+      if (appendToExisting.value) {
+        // 如果是追加模式，合并文档名列表
+        processedDocumentNames.value = [...processedDocumentNames.value, ...vectorizeResponse.data.processedDocumentNames];
+      } else {
+        // 如果是新建模式，替换文档名列表
+        processedDocumentNames.value = vectorizeResponse.data.processedDocumentNames;
+      }
+    }
+    
     // 构建成功消息
     let successMessage;
     if (vectorizeResponse.data.appendedToExisting) {
@@ -387,6 +447,9 @@ const sendQuery = async () => {
   await nextTick();
   scrollToBottom();
   
+  // 创建取消控制器
+  abortController = new AbortController();
+  
   try {
     // 限制查询文本长度，避免超出API限制
     const truncatedQuery = query.substring(0, 1000);
@@ -399,7 +462,9 @@ const sendQuery = async () => {
       query: truncatedQuery,
       vectorStorePath: vectorStorePath.value,
       similarityThreshold: parseFloat(similarityThreshold.value),
-      useGeneralModelFallback: useGeneralModelFallback.value
+      useGeneralModelFallback: useGeneralModelFallback.value,
+      useWebSearch: useWebSearch.value,
+      useAgent: useAgent.value
     };
     
     // 如果启用了记忆功能，添加会话ID
@@ -409,7 +474,8 @@ const sendQuery = async () => {
     }
     
     const response = await axios.post('/api/query', requestData, {
-      timeout: 90000 // 增加到90秒超时时间
+      timeout: 90000, // 增加到90秒超时时间
+      signal: abortController.signal // 添加取消信号
     });
     
     console.log('收到查询响应:', response.data);
@@ -420,16 +486,55 @@ const sendQuery = async () => {
       chatHistory.value.push({
         role: 'assistant',
         content: response.data.answer || '未找到相关答案',
-        usedGeneralModel: response.data.usedGeneralModel
+        usedGeneralModel: response.data.usedGeneralModel,
+        usedWebSearch: response.data.usedWebSearch,
+        usedAgent: response.data.usedAgent
       });
       
+      // 如果使用了Agent，显示Agent信息
+      if (response.data.usedAgent) {
+        chatHistory.value.push({
+          role: 'system',
+          content: '通过智能代理提供的回答'
+        });
+      }
+      // 如果使用了网络搜索，显示搜索结果来源
+      else if (response.data.usedWebSearch && response.data.searchResults && response.data.searchResults.length > 0) {
+        const searchResults = response.data.searchResults;
+        const resultInfo = "网络搜索结果来源：\n" + 
+          searchResults.map((result, index) => 
+            `- [${index + 1}] ${result.title} (${result.displayLink})`
+          ).join('\n');
+        
+        chatHistory.value.push({
+          role: 'system',
+          content: resultInfo
+        });
+      }
       // 如果有源文档信息且不是使用通用模型，才显示参考信息
-      if (response.data.sources && response.data.sources.length > 0 && !response.data.usedGeneralModel) {
-        // 直接使用后端返回的源文件名
-        const sources = response.data.sources;
+      else if (response.data.sources && response.data.sources.length > 0 && !response.data.usedGeneralModel) {
+        // 使用processedDocumentNames中的原始文件名
+        // 因为数据流程：上传文件 -> 服务器生成随机文件名 -> 处理并存储 -> 返回原始文件名列表到processedDocumentNames
+        const sources = response.data.sources.map(src => {
+          // 我们知道此时processedDocumentNames中应该已经有原始文件名
+          // 当只有一个文档时，直接使用它
+          if (processedDocumentNames.value && processedDocumentNames.value.length === 1) {
+            return {
+              ...src,
+              displayName: processedDocumentNames.value[0]
+            };
+          } else {
+            // 如果有多个文档，则仍使用文件名部分
+            const fileName = src.source.split(/[\/\\]/).pop();
+            return {
+              ...src,
+              displayName: fileName || src.source
+            };
+          }
+        });
         
         const sourceInfo = "参考信息来源：\n" + 
-          sources.map(src => `- ${src.source} (相似度: ${src.similarity})`).join('\n');
+          sources.map(src => `- ${src.displayName} (相似度: ${src.similarity})`).join('\n');
         
         chatHistory.value.push({
           role: 'system',
@@ -441,6 +546,15 @@ const sendQuery = async () => {
     }
   } catch (error) {
     console.error('查询失败', error);
+    
+    // 如果请求被取消，不显示错误
+    if (error.name === 'AbortError' || error.name === 'CanceledError') {
+      chatHistory.value.push({
+        role: 'system',
+        content: '请求已取消'
+      });
+      return;
+    }
     
     let errorMessage;
     if (error.code === 'ECONNABORTED') {
@@ -460,10 +574,19 @@ const sendQuery = async () => {
     });
   } finally {
     isQueryProcessing.value = false;
+    abortController = null;
     
     // 滚动到底部
     await nextTick();
     scrollToBottom();
+  }
+};
+
+// 添加取消查询方法
+const cancelQuery = () => {
+  if (abortController) {
+    abortController.abort();
+    console.log('查询请求已取消');
   }
 };
 
@@ -560,5 +683,23 @@ input.form-control:focus, button.btn:focus {
 
 .session-badge .badge {
   font-weight: normal;
+}
+
+/* 添加文档列表容器样式 */
+.document-list-container {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
+
+.document-list-container .list-group-item {
+  padding: 0.3rem 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85rem;
+  border-left: none;
+  border-right: none;
 }
 </style> 

@@ -3,13 +3,12 @@ import { ChatOpenAI } from "@langchain/openai";
 import dotenv from "dotenv";
 import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
 import { createEmbeddingModel } from "./embeddings.js";
+import { addToMemory, getFormattedHistory } from "./memoryService.js";
 import { loadVectorStore, similaritySearch } from "./vectorStore.js";
+import { getAnswerFromWebSearch } from "./webSearchService.js";
 
 // 加载环境变量
 dotenv.config();
-
-// 存储用户会话记忆的Map
-const sessionMemories = new Map();
 
 /**
  * 创建聊天模型
@@ -26,64 +25,25 @@ export function createChatModel(apiKey, modelName, endpoint) {
     }
   }
 
+  const actualEndpoint = endpoint || process.env.OPENAI_API_ENDPOINT;
+  console.log(`使用OpenAI API端点: ${actualEndpoint || "默认官方API"}`);
+
   const options = {
     openAIApiKey: apiKey,
     modelName: modelName || process.env.MODEL_NAME || "gpt-3.5-turbo",
     temperature: 0.3,
     maxTokens: 800,
+    timeout: 60000, // 60秒超时
+    maxRetries: 3, // 最大重试次数
   };
 
-  if (endpoint || process.env.OPENAI_API_ENDPOINT) {
+  if (actualEndpoint) {
     options.configuration = {
-      basePath: endpoint || process.env.OPENAI_API_ENDPOINT,
+      baseURL: actualEndpoint, // 使用baseURL而不是basePath
     };
   }
 
   return new ChatOpenAI(options);
-}
-
-/**
- * 获取或创建用户会话的记忆
- * @param {string} sessionId 用户会话ID
- * @returns {Array} 会话历史记录
- */
-export function getOrCreateMemory(sessionId) {
-  if (!sessionMemories.has(sessionId)) {
-    // 创建新的会话记忆，使用简单数组存储历史记录
-    sessionMemories.set(sessionId, []);
-  }
-  return sessionMemories.get(sessionId);
-}
-
-/**
- * 添加消息到会话记忆
- * @param {string} sessionId 会话ID
- * @param {string} role 消息角色（user/assistant）
- * @param {string} content 消息内容
- */
-export function addMessageToMemory(sessionId, role, content) {
-  if (!sessionId) return;
-
-  const memory = getOrCreateMemory(sessionId);
-  memory.push({ role, content });
-
-  // 保持历史记录在合理范围内，避免token过多
-  if (memory.length > 10) {
-    memory.shift(); // 移除最旧的消息
-  }
-}
-
-/**
- * 格式化历史记录为提示模板可用的格式
- * @param {Array} messages 历史消息数组
- * @returns {string} 格式化的历史记录
- */
-export function formatChatHistory(messages) {
-  if (!messages || messages.length === 0) return "";
-
-  return messages
-    .map((m) => `${m.role === "user" ? "人类" : "AI"}: ${m.content}`)
-    .join("\n");
 }
 
 /**
@@ -113,30 +73,31 @@ export async function queryGeneralModel(query, llm, sessionId) {
     if (sessionId) {
       console.log(`使用会话ID: ${sessionId} 的记忆处理问题`);
 
-      // 获取历史记录
-      const chatHistory = getOrCreateMemory(sessionId);
-      const formattedHistory = formatChatHistory(chatHistory);
+      // 获取历史记录文本 - 修复异步调用
+      const historyText = await getFormattedHistory(sessionId);
 
-      // 创建带历史记录的提示
-      const template = `以下是人类和AI之间的对话。请根据对话历史回答人类的最新问题。如果你不确定答案，请直接说不知道。
+      // 构建提示模板
+      const template = historyText
+        ? `以下是之前的对话历史:
+${historyText}
 
-对话历史:
-${formattedHistory ? formattedHistory + "\n" : ""}
+基于以上历史，回答用户的问题: {question}
+请用中文简明扼要地回答:`
+        : `请回答以下问题，如果你不确定答案，请直接说不知道，不要编造信息。
 
-人类: {question}
+问题: {question}
 
-AI: `;
+请用中文简明扼要地回答:`;
 
       const prompt = PromptTemplate.fromTemplate(template);
       const formattedPrompt = await prompt.format({ question: query });
 
-      // 调用LLM
+      // 使用LLM直接调用
       const response = await llm.invoke(formattedPrompt);
       const answer = typeof response === "string" ? response : response.content;
 
       // 更新会话历史
-      addMessageToMemory(sessionId, "user", query);
-      addMessageToMemory(sessionId, "assistant", answer);
+      await addToMemory(sessionId, query, answer);
 
       return answer;
     } else {
@@ -175,9 +136,14 @@ AI: `;
  * @param {object} vectorStore 向量存储
  * @param {string} promptTemplate 提示模板
  * @param {string} sessionId 用户会话ID
- * @returns {RetrievalQAChain} 问答链
+ * @returns {Promise<RetrievalQAChain>} 问答链
  */
-export function createQAChain(llm, vectorStore, promptTemplate, sessionId) {
+export async function createQAChain(
+  llm,
+  vectorStore,
+  promptTemplate,
+  sessionId
+) {
   if (!llm) {
     throw new Error("未提供语言模型");
   }
@@ -189,8 +155,12 @@ export function createQAChain(llm, vectorStore, promptTemplate, sessionId) {
   // 获取历史记录
   let historyText = "";
   if (sessionId) {
-    const chatHistory = getOrCreateMemory(sessionId);
-    historyText = formatChatHistory(chatHistory);
+    try {
+      // 使用新的方法获取格式化的历史记录 - 修复异步调用
+      historyText = await getFormattedHistory(sessionId);
+    } catch (error) {
+      console.error("获取历史记录失败:", error);
+    }
   }
 
   // 默认提示模板
@@ -248,6 +218,7 @@ export async function executeQuery(query, options) {
     modelName,
     similarityThreshold = 0.6,
     useGeneralModelFallback = true,
+    useWebSearch = false,
     sessionId = null,
   } = options;
 
@@ -276,6 +247,7 @@ export async function executeQuery(query, options) {
     console.log(`使用API端点: ${actualEndpoint || "默认OpenAI"}`);
     console.log(`使用模型: ${actualModelName}`);
     console.log(`相似度阈值: ${similarityThreshold}`);
+    console.log(`使用网络搜索: ${useWebSearch ? "是" : "否"}`);
 
     // 确保查询文本不超过API限制
     const truncatedQuery = query.substring(0, 1000);
@@ -302,58 +274,140 @@ export async function executeQuery(query, options) {
       similarityThreshold
     );
 
-    // 如果没有找到相似度足够高的文档，且用户开启了通用模型回退
-    if (searchResults.length === 0 && useGeneralModelFallback) {
-      console.log("未找到相似度足够高的文档，使用通用模型回答问题");
-      const generalAnswer = await queryGeneralModel(
-        truncatedQuery,
-        llm,
-        sessionId
-      );
-      return {
-        answer: generalAnswer,
-        sources: [],
-        usedGeneralModel: true,
-      };
+    // 如果没有找到相似度足够高的文档
+    if (searchResults.length === 0) {
+      console.log("未找到相似度足够高的文档");
+
+      // 如果开启了网络搜索
+      if (useWebSearch) {
+        console.log("使用网络搜索获取答案");
+        const webSearchResult = await getAnswerFromWebSearch(truncatedQuery);
+
+        // 如果有会话ID，将对话保存到记忆中
+        if (sessionId) {
+          const answer = webSearchResult.output || webSearchResult.answer;
+          if (answer) {
+            await addToMemory(sessionId, truncatedQuery, answer);
+          } else {
+            console.log("网络搜索未返回有效答案，跳过记忆保存");
+          }
+        }
+
+        return {
+          answer: webSearchResult.output || webSearchResult.answer,
+          sources: [],
+          searchResults: webSearchResult.searchResults,
+          usedGeneralModel: false,
+          usedWebSearch: true,
+        };
+      }
+      // 如果开启了通用模型回退但没开启网络搜索
+      else if (useGeneralModelFallback) {
+        console.log("使用通用模型回答问题");
+        const generalAnswer = await queryGeneralModel(
+          truncatedQuery,
+          llm,
+          sessionId
+        );
+
+        return {
+          answer: generalAnswer,
+          sources: [],
+          searchResults: [],
+          usedGeneralModel: true,
+          usedWebSearch: false,
+        };
+      }
+      // 如果既不使用网络搜索也不使用通用模型
+      else {
+        return {
+          answer: "抱歉，我在知识库中没有找到与您问题相关的信息。",
+          sources: [],
+          searchResults: [],
+          usedGeneralModel: false,
+          usedWebSearch: false,
+        };
+      }
     }
 
-    // 有结果或者用户要求不使用通用模型，使用问答链
-    // 创建问答链并执行
+    // 有结果，使用问答链
     console.log(
       `找到 ${searchResults.length} 个相关文档，执行LangChain问答链...`
     );
-    const chain = createQAChain(llm, vectorStore, null, sessionId);
+    const chain = await createQAChain(llm, vectorStore, null, sessionId);
 
-    const result = await chain.call({
+    // 使用invoke代替call
+    const result = await chain.invoke({
       query: truncatedQuery,
     });
 
     console.log("LangChain查询完成");
-    console.log(`找到的源文档数量: ${result.sourceDocuments?.length || 0}`);
 
-    // 如果相似度不够高且开启了通用模型，不显示源文档
-    let sources = [];
-    if (searchResults.length > 0) {
-      // 格式化源文档，添加相似度信息
-      sources = searchResults.map(([doc, score]) => {
-        return {
+    // 从结果中获取text和sourceDocuments，兼容不同版本的返回格式
+    const answerText = result.text || result.answer || result.output || result;
+    const sourceDocuments = result.sourceDocuments || [];
+
+    console.log(`找到的源文档数量: ${sourceDocuments.length || 0}`);
+
+    // 去重相同源文件的文档，只保留相似度最高的
+    const uniqueSources = new Map();
+
+    searchResults.forEach(([doc, score]) => {
+      const source = doc.metadata.source;
+      // 如果是首次出现这个源，或者比之前的相似度更高，则保存
+      if (
+        !uniqueSources.has(source) ||
+        score > uniqueSources.get(source).score
+      ) {
+        uniqueSources.set(source, {
           content: doc.pageContent.substring(0, 150) + "...",
-          source: doc.metadata.source,
-          similarity: score.toFixed(2),
+          similarity: score,
+        });
+      }
+    });
+
+    // 转换为数组格式返回给前端
+    const sources = Array.from(uniqueSources.entries()).map(
+      ([source, data]) => {
+        // 这里直接使用metadata中保存的原始文件名作为source
+        // documentRoutes.js中存储文档时，已将原始文件名保存到metadata
+        return {
+          content: data.content,
+          source: source, // 这是原始文件名
+          similarity: data.similarity.toFixed(2),
         };
-      });
-    }
+      }
+    );
+
+    // 按相似度降序排序
+    sources.sort((a, b) => b.similarity - a.similarity);
 
     // 更新会话历史
     if (sessionId) {
-      addMessageToMemory(sessionId, "user", truncatedQuery);
-      addMessageToMemory(sessionId, "assistant", result.text);
+      // 确保answerText是一个有效的字符串
+      const validAnswer =
+        typeof answerText === "string"
+          ? answerText
+          : answerText?.text ||
+            answerText?.content ||
+            answerText?.answer ||
+            answerText?.output ||
+            JSON.stringify(answerText) ||
+            "无有效回答";
+      try {
+        await addToMemory(sessionId, truncatedQuery, validAnswer);
+        console.log("成功更新会话历史");
+      } catch (memoryError) {
+        console.error("更新会话历史失败:", memoryError);
+        // 继续执行，不影响主流程
+      }
     }
 
     return {
-      answer: result.text,
+      answer: answerText,
       sources: sources,
       usedGeneralModel: false,
+      usedWebSearch: false,
     };
   } catch (error) {
     console.error("执行查询失败:", error);
@@ -404,4 +458,54 @@ export async function searchSimilarDocs(query, options) {
     console.error("相似度搜索失败:", error);
     throw error;
   }
+}
+
+/**
+ * 确定查询类型
+ * @param {string} query 用户查询
+ * @returns {string} 查询类型 (general|web_search)
+ */
+export function determineQueryType(query) {
+  // 如果查询包含特定关键词，更可能需要最新的互联网信息
+  const webSearchKeywords = [
+    "最新",
+    "新闻",
+    "近期",
+    "目前",
+    "现状",
+    "最近",
+    "今天",
+    "昨天",
+    "本周",
+    "本月",
+    "今年",
+  ];
+
+  // 如果查询是问题形式并包含特定领域词汇，可能需要最新信息
+  const questionPatterns = [
+    /最近.+?吗/,
+    /现在.+?如何/,
+    /目前.+?情况/,
+    /最新.+?消息/,
+    /有没有.+?新/,
+  ];
+
+  // 检查是否包含与时间相关的关键词
+  const containsWebSearchKeyword = webSearchKeywords.some((keyword) =>
+    query.includes(keyword)
+  );
+
+  // 检查是否匹配特定问题模式
+  const matchesQuestionPattern = questionPatterns.some((pattern) =>
+    pattern.test(query)
+  );
+
+  // 如果满足任一条件，使用网络搜索
+  if (containsWebSearchKeyword || matchesQuestionPattern) {
+    console.log(`查询 "${query}" 被判断为需要网络搜索`);
+    return "web_search";
+  }
+
+  console.log(`查询 "${query}" 被判断为一般查询`);
+  return "general";
 }

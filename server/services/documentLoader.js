@@ -1,9 +1,9 @@
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
+import { DocxLoader } from "@langchain/community/document_loaders/fs/docx";
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import fs from "fs";
-import { CSVLoader } from "langchain/document_loaders/fs/csv";
 import { DirectoryLoader } from "langchain/document_loaders/fs/directory";
-import { DocxLoader } from "langchain/document_loaders/fs/docx";
 import { JSONLoader } from "langchain/document_loaders/fs/json";
-import { PDFLoader } from "langchain/document_loaders/fs/pdf";
 import { TextLoader } from "langchain/document_loaders/fs/text";
 import path from "path";
 

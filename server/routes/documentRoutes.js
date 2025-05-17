@@ -124,6 +124,9 @@ router.post("/vectorize", async (req, res) => {
     console.log(`提供的文本数量: ${extractedTexts.length}`);
     console.log(`追加到现有向量: ${appendToExisting ? "是" : "否"}`);
 
+    // 收集所有文档的文件名
+    const processedDocumentNames = extractedTexts.map((item) => item.filename);
+
     // 转换extractedTexts为LangChain文档格式
     const documents = extractedTexts.map((item) => ({
       pageContent: item.text,
@@ -185,6 +188,7 @@ router.post("/vectorize", async (req, res) => {
         : `成功向量化 ${extractedTexts.length} 个文档，生成 ${splitDocs.length} 个向量`,
       vectorStorePath: resultVectorStorePath,
       documentsProcessed: extractedTexts.length,
+      processedDocumentNames: processedDocumentNames,
       chunksGenerated: splitDocs.length,
       appendedToExisting: appendToExisting || false,
       totalVectors: result.totalCount,
