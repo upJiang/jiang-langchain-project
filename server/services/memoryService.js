@@ -13,8 +13,8 @@ export function getMemoryForSession(sessionId) {
     return new BufferMemory({
       returnMessages: true,
       memoryKey: "chat_history",
-      inputKey: "input",
-      outputKey: "output",
+      inputKey: "question",
+      outputKey: "text",
     });
   }
 
@@ -27,8 +27,8 @@ export function getMemoryForSession(sessionId) {
   const memory = new BufferMemory({
     returnMessages: true,
     memoryKey: "chat_history",
-    inputKey: "input",
-    outputKey: "output",
+    inputKey: "question",
+    outputKey: "text",
   });
 
   memoryInstances.set(sessionId, memory);
@@ -60,8 +60,8 @@ export async function addToMemory(sessionId, humanInput, aiOutput) {
     // 获取会话记忆
     const memory = getMemoryForSession(sessionId);
 
-    // 添加新的消息到记忆
-    await memory.saveContext({ input: inputText }, { output: outputText });
+    // 添加新的消息到记忆，注意使用与BufferMemory配置中相同的键名
+    await memory.saveContext({ question: inputText }, { text: outputText });
 
     console.log(`已将对话添加到会话 ${sessionId} 的记忆中`);
   } catch (error) {

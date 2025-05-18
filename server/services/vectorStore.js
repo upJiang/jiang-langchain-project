@@ -1,5 +1,5 @@
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import fs from "fs";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import path from "path";
 

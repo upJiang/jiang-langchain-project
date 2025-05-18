@@ -1,9 +1,9 @@
 import { Serper } from "@langchain/community/tools/serper";
 import { Tool } from "@langchain/core/tools";
 import dotenv from "dotenv";
-import { initializeAgentExecutorWithOptions } from "langchain/agents";
+import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
 import { createEmbeddingModel } from "./embeddings.js";
-import { addToMemory } from "./memoryService.js";
+import { addToMemory, getMemoryForSession } from "./memoryService.js";
 import { createChatModel } from "./queryService.js";
 import { loadVectorStore, similaritySearch } from "./vectorStore.js";
 
@@ -115,11 +115,22 @@ export async function executeAgentQuery(query, options) {
       createKnowledgeBaseTool(vectorStorePath, similarityThreshold),
     ];
 
+    // 获取会话记忆
+    const memory = sessionId ? getMemoryForSession(sessionId) : null;
+
     // 初始化Agent
-    const executor = await initializeAgentExecutorWithOptions(tools, llm, {
-      agentType: "openai-functions",
+    // 使用新的API创建Agent
+    const agent = await createOpenAIFunctionsAgent({
+      llm,
+      tools,
       verbose: verbose || process.env.DEBUG === "true",
-      handleParsingErrors: true, // 处理解析错误
+    });
+
+    const executor = AgentExecutor.fromAgentAndTools({
+      agent,
+      tools,
+      memory,
+      verbose: verbose || process.env.DEBUG === "true",
       maxIterations: 5, // 最大迭代次数，防止无限循环
     });
 

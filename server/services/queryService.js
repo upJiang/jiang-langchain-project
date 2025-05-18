@@ -1,9 +1,14 @@
 import { PromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI } from "@langchain/openai";
 import dotenv from "dotenv";
-import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { createRetrievalChain } from "langchain/chains/retrieval";
 import { createEmbeddingModel } from "./embeddings.js";
-import { addToMemory, getFormattedHistory } from "./memoryService.js";
+import {
+  addToMemory,
+  getFormattedHistory,
+  getMemoryForSession,
+} from "./memoryService.js";
 import { loadVectorStore, similaritySearch } from "./vectorStore.js";
 import { getAnswerFromWebSearch } from "./webSearchService.js";
 
@@ -96,7 +101,7 @@ ${historyText}
       const response = await llm.invoke(formattedPrompt);
       const answer = typeof response === "string" ? response : response.content;
 
-      // 更新会话历史
+      // 更新会话历史，使用新的键名
       await addToMemory(sessionId, query, answer);
 
       return answer;
@@ -136,7 +141,7 @@ ${historyText}
  * @param {object} vectorStore 向量存储
  * @param {string} promptTemplate 提示模板
  * @param {string} sessionId 用户会话ID
- * @returns {Promise<RetrievalQAChain>} 问答链
+ * @returns {Promise<object>} 问答链
  */
 export async function createQAChain(
   llm,
@@ -152,39 +157,13 @@ export async function createQAChain(
     throw new Error("未提供向量存储");
   }
 
-  // 获取历史记录
-  let historyText = "";
-  if (sessionId) {
-    try {
-      // 使用新的方法获取格式化的历史记录 - 修复异步调用
-      historyText = await getFormattedHistory(sessionId);
-    } catch (error) {
-      console.error("获取历史记录失败:", error);
-    }
-  }
+  // 获取会话的记忆实例
+  const memory = getMemoryForSession(sessionId);
 
-  // 默认提示模板
-  let template;
-  if (sessionId && historyText) {
-    // 带上下文的提示模板
-    template =
-      promptTemplate ||
-      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
-
-信息:
-{context}
-
-对话历史:
-${historyText}
-
-用户问题: {question}
-
-请用中文简明扼要地回答:`;
-  } else {
-    // 无上下文的提示模板
-    template =
-      promptTemplate ||
-      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
+  // 默认QA提示模板
+  const qaTemplate =
+    promptTemplate ||
+    `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
 
 信息:
 {context}
@@ -192,14 +171,20 @@ ${historyText}
 用户问题: {question}
 
 请用中文简明扼要地回答:`;
-  }
 
-  const PROMPT = PromptTemplate.fromTemplate(template);
+  const PROMPT = PromptTemplate.fromTemplate(qaTemplate);
 
-  // 创建问答链
-  return new RetrievalQAChain({
-    combineDocumentsChain: loadQAStuffChain(llm, { prompt: PROMPT }),
+  // 创建文档合并链 - 使用新的API
+  const documentChain = await createStuffDocumentsChain({
+    llm,
+    prompt: PROMPT,
+  });
+
+  // 创建检索链 - 使用新的API
+  return createRetrievalChain({
     retriever: vectorStore.asRetriever(),
+    combineDocsChain: documentChain,
+    memory,
     returnSourceDocuments: true,
   });
 }
@@ -336,15 +321,15 @@ export async function executeQuery(query, options) {
     );
     const chain = await createQAChain(llm, vectorStore, null, sessionId);
 
-    // 使用invoke代替call
+    // 使用新的invoke方法调用链
     const result = await chain.invoke({
-      query: truncatedQuery,
+      question: truncatedQuery,
     });
 
     console.log("LangChain查询完成");
 
-    // 从结果中获取text和sourceDocuments，兼容不同版本的返回格式
-    const answerText = result.text || result.answer || result.output || result;
+    // 从结果中获取text和sourceDocuments，兼容新版本的返回格式
+    const answerText = result.answer || result.text || result.output || result;
     const sourceDocuments = result.sourceDocuments || [];
 
     console.log(`找到的源文档数量: ${sourceDocuments.length || 0}`);
@@ -382,26 +367,7 @@ export async function executeQuery(query, options) {
     // 按相似度降序排序
     sources.sort((a, b) => b.similarity - a.similarity);
 
-    // 更新会话历史
-    if (sessionId) {
-      // 确保answerText是一个有效的字符串
-      const validAnswer =
-        typeof answerText === "string"
-          ? answerText
-          : answerText?.text ||
-            answerText?.content ||
-            answerText?.answer ||
-            answerText?.output ||
-            JSON.stringify(answerText) ||
-            "无有效回答";
-      try {
-        await addToMemory(sessionId, truncatedQuery, validAnswer);
-        console.log("成功更新会话历史");
-      } catch (memoryError) {
-        console.error("更新会话历史失败:", memoryError);
-        // 继续执行，不影响主流程
-      }
-    }
+    // createRetrievalChain已自动处理记忆保存，不需要手动更新
 
     return {
       answer: answerText,
