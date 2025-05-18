@@ -1,6 +1,6 @@
 <template>
   <div class="container mt-4">
-    <h1 class="text-center mb-4">智能文档问答系统</h1>
+   
     
     <div class="row">
       <div class="col-md-5">

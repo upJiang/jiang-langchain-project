@@ -1,61 +1,68 @@
-本文将详细介绍一个完整的项目——基于 LangChain.js 构建的智能客服平台。随着大语言模型（LLM）时代的到来，越来越多企业开始将这一技术应用到实际业务场景中，其中智能客服作为一个高价值落地应用尤为突出。[langchain.js 最新版本官方文档](https://js.langchain.com/docs/versions/v0_3/)
+---
+theme: z-blue
+---
 
-本项目是基于 LangChain.js 构建的智能客服平台，通过本项目学习，您将掌握：
+随着大语言模型（LLM）时代的到来，越来越多企业开始将这一技术应用到实际业务场景中，其中智能客服作为一个高价值落地应用尤为突出。[langchain.js 最新版本官方文档](https://js.langchain.com/docs/versions/v0_3/)
 
-- 基于 Vue3 和 Express 的全栈开发实践
-- LangChain.js框架的核心概念及应用方法
-- RAG（检索增强生成）系统的完整构建流程
-- 文档处理、向量存储与语义搜索的实现技术
-- 大语言模型会话记忆功能的工程化实现
-- 网络搜索功能与智能代理的集成方案
+本项目是基于 LangChain.js 构建的智能客服平台，通过本项目学习，您可以学到：
 
+*   基于 `Vue3` 和 `Express` 的全栈开发实践
+*   `LangChain.js` 框架的核心概念及应用方法
+*   `RAG`（检索增强生成）系统的完整构建流程
+*   文档处理（`loader`）、向量存储（`vectorStore`）与语义搜索（`similaritySearch`）的实现技术
+*   大语言模型会话记忆功能（`BufferMemory`）的工程化实现
+*   网络搜索功能（`serper`）与智能代理（`agent`）的集成方案
 
-无论您是希望深入了解LangChain框架，还是计划将大语言模型能力集成到自己的项目中，相信都能帮助到您。
+无论您是希望深入了解 `LangChain` 框架，还是计划将大语言模型能力集成到自己的项目中，相信这篇文章都能帮助到您。
+
+项目运行截图：
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/70ddd6a5c8204c949f3db800065bded9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=hj5L8buKgMFAg4YbVsNhV5g9fzA%3D)
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/ff78db4ec86e4d66adef334ccd40a8da~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=0WKrehr8q6m%2FRSFkavso2m03%2FfY%3D)
+
+看截图是不是很像 `dify/coze` 平台的 `agent` 系统，接下来让我们用 `vue3 + express + langchain.js` 实现这个系统。
+
+[代码仓库地址](https://github.com/upJiang/jiang-langchain-project)，**可以先下载代码后再继续阅读**，运行项目需要以下条件：
+
+*   没有 `openAI` 的 `apiKey` 的 需要提供一个 [转发 API](https://github.com/chatanywhere/GPT_API_free?tab=readme-ov-file)
+*   硅基流动平台申请一个 `apiKey`,需要使用它的 `embeddings` 模型把文本转成向量
+*   网络搜索使用 [serper](https://serper.dev/)，自行申请一个 `apikey`，有免费的额度
+
+以下配置需要自己新建一个 `.env` 并且把配置补充完整后方可运行项目
+
+    # 模型API配置
+    OPENAI_API_ENDPOINT=https://api.chatanywhere.tech
+    MODEL_NAME=gpt-3.5-turbo-1106
+    OPENAI_API_KEY=
+
+    # 嵌入模型配置
+    EMBEDDING_ENDPOINT=https://api.siliconflow.cn/v1/embeddings
+    EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5
+    EMBEDDING_API_KEY=sk-
+
+    # https://serper.dev/ 网络搜索配置
+    SERPER_API_KEY=
 
 ## 项目概览
 
 ### 项目目录结构
 
-```
-jiang-langchain-project/
-├── client/                # 前端Vue3应用
-├── server/                # 后端Express服务
-│   ├── routes/            # 路由定义
-│   │   ├── documentRoutes.js  # 文档处理相关路由
-│   │   └── queryRoutes.js     # 查询相关路由
-│   ├── services/          # 核心服务实现
-│   │   ├── agentService.js    # 智能代理服务
-│   │   ├── documentLoader.js  # 文档加载器
-│   │   ├── embeddings.js      # 嵌入模型
-│   │   ├── memoryService.js   # 会话记忆
-│   │   ├── queryService.js    # 查询服务
-│   │   ├── vectorStore.js     # 向量存储
-│   │   └── webSearchService.js # 网络搜索
-│   └── index.js           # 服务入口
-└── package.json           # 项目依赖
-```
-
-### 功能大纲
-
-1. **文档处理与知识库构建**
-   - 支持多种格式文档的上传与处理
-   - 文本分割与向量化
-   - 构建向量数据库
-
-2. **智能查询系统**
-   - 基于相似度的本地知识库查询
-   - 当本地知识无法回答时自动切换到通用模型
-   - 网络搜索增强回答能力
-   - 智能代理路由决策
-
-3. **会话管理**
-   - 支持多轮对话历史记忆
-   - 基于会话ID的用户隔离
-
-4. **用户界面**
-   - 文档上传与管理
-   - 交互式对话界面
-   - 查询配置选项
+    ├── client/                # 前端Vue3应用
+    ├── server/                # 后端Express服务
+    │   ├── routes/            # 路由定义
+    │   │   ├── documentRoutes.js  # 文档处理相关路由
+    │   │   └── queryRoutes.js     # 查询相关路由
+    │   ├── services/          # 核心服务实现
+    │   │   ├── agentService.js    # 智能代理服务
+    │   │   ├── documentLoader.js  # 文档加载器
+    │   │   ├── embeddings.js      # 嵌入模型
+    │   │   ├── memoryService.js   # 会话记忆
+    │   │   ├── queryService.js    # 查询服务
+    │   │   ├── vectorStore.js     # 向量存储
+    │   │   └── webSearchService.js # 网络搜索
+    │   └── index.js           # 服务入口
+    └── package.json           # 项目依赖
 
 ## LangChain.js 核心知识点
 
@@ -66,29 +73,106 @@ jiang-langchain-project/
 用于从各种来源加载文档，包括PDF、HTML、文本文件等。
 
 ```javascript
-import { PDFLoader } from "langchain/document_loaders/fs/pdf";
-const loader = new PDFLoader("path/to/file.pdf");
+// 从server/services/documentLoader.js的实际实现
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
+import { DocxLoader } from "@langchain/community/document_loaders/fs/docx";
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import { JSONLoader } from "langchain/document_loaders/fs/json";
+import { TextLoader } from "langchain/document_loaders/fs/text";
+
+// 根据文件类型选择加载器
+switch (ext) {
+  case ".txt":
+  case ".md":
+    loader = new TextLoader(filePath);
+    break;
+  case ".pdf":
+    loader = new PDFLoader(filePath);
+    break;
+  case ".csv":
+    loader = new CSVLoader(filePath);
+    break;
+  case ".json":
+    loader = new JSONLoader(filePath);
+    break;
+  case ".docx":
+    loader = new DocxLoader(filePath);
+    break;
+}
+
+// 加载文档
 const docs = await loader.load();
 ```
 
 ### 2. 文本分割器（Text Splitters）
 
-将长文本分割成适合向量存储的小块。
+将长文本分割成适合向量存储的小块
 
 ```javascript
+// 从server/services/vectorStore.js的实际实现
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-const splitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 1000,
-  chunkOverlap: 200,
-});
+
+/**
+ * 创建文本分割器
+ * @param {number} chunkSize 文本块大小
+ * @param {number} chunkOverlap 重叠大小
+ * @returns {RecursiveCharacterTextSplitter} 文本分割器
+ */
+export function createTextSplitter(chunkSize = 500, chunkOverlap = 50) {
+  return new RecursiveCharacterTextSplitter({
+    chunkSize,
+    chunkOverlap,
+  });
+}
+
+/**
+ * 将文档拆分成较小的块
+ */
+export async function splitDocuments(documents, textSplitter) {
+  if (!textSplitter) {
+    textSplitter = createTextSplitter();
+  }
+  
+  // 拆分所有文档
+  const splitDocs = [];
+
+  for (const doc of documents) {
+    const splits = await textSplitter.splitDocuments([doc]);
+    splitDocs.push(...splits);
+  }
+
+  console.log(`将 ${documents.length} 个文档分割为 ${splitDocs.length} 个块`);
+  return splitDocs;
+}
 ```
+
 ### 3. 向量存储（Vector Stores）
 
 存储文档的向量表示，支持相似度搜索。
 
 ```javascript
-import { HNSWLib } from "langchain/vectorstores/hnswlib";
-const vectorStore = await HNSWLib.fromDocuments(documents, embeddings);
+// 从server/services/vectorStore.js的实际实现
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+
+/**
+ * 从序列化数据加载内存向量存储
+ */
+export async function loadVectorStore(storePath, embeddings) {
+  const jsonPath = `${storePath}.json`;
+
+  // 读取序列化数据
+  const serialized = fs.readFileSync(jsonPath, "utf-8");
+  const data = JSON.parse(serialized);
+
+  // 创建新的内存向量存储
+  const vectorStore = new MemoryVectorStore(embeddings);
+
+  // 手动设置内存向量
+  vectorStore.memoryVectors = data.vectors;
+  vectorStore.documentIds = data.documentIds;
+
+  return vectorStore;
+}
 ```
 
 ### 4. 检索器（Retrievers）
@@ -96,38 +180,463 @@ const vectorStore = await HNSWLib.fromDocuments(documents, embeddings);
 从向量存储中检索相关文档。
 
 ```javascript
-const retriever = vectorStore.asRetriever();
-const relevantDocs = await retriever.getRelevantDocuments(query);
+// 从server/services/queryService.js的createQAChain函数中提取
+const PROMPT = PromptTemplate.fromTemplate(template);
+
+// 创建问答链
+return new RetrievalQAChain({
+  combineDocumentsChain: loadQAStuffChain(llm, { prompt: PROMPT }),
+  retriever: vectorStore.asRetriever(), // 向量库
+  returnSourceDocuments: true,
+});
 ```
 
 ### 5. 链（Chains）
 
 将多个组件连接起来，形成端到端的应用流程。
 
+LangChain.js提供了多种专用链，用于解决不同场景的问题：
+
+#### RetrievalQAChain - 基础检索问答链
+
+本项目主要使用的链，用于从向量存储中检索文档并生成答案：
+
 ```javascript
-import { RetrievalQAChain } from "langchain/chains";
-const chain = RetrievalQAChain.fromLLM(model, retriever);
+// 从server/services/queryService.js的实际实现
+import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
+
+/**
+ * 创建问答链
+ */
+export async function createQAChain(
+  llm,
+  vectorStore,
+  promptTemplate,
+  sessionId
+) {
+  // 获取历史记录
+  let historyText = "";
+  if (sessionId) {
+    try {
+      historyText = await getFormattedHistory(sessionId);
+    } catch (error) {
+      console.error("获取历史记录失败:", error);
+    }
+  }
+
+  // 默认提示模板
+  let template;
+  if (sessionId && historyText) {
+    // 带上下文的提示模板
+    template =
+      promptTemplate ||
+      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
+
+信息:
+{context}
+
+对话历史:
+${historyText}
+
+用户问题: {question}
+
+请用中文简明扼要地回答:`;
+  } else {
+    // 无上下文的提示模板
+    template =
+      promptTemplate ||
+      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
+
+信息:
+{context}
+
+用户问题: {question}
+
+请用中文简明扼要地回答:`;
+  }
+
+  const PROMPT = PromptTemplate.fromTemplate(template);
+
+  // 创建问答链
+  return new RetrievalQAChain({
+    combineDocumentsChain: loadQAStuffChain(llm, { prompt: PROMPT }),
+    retriever: vectorStore.asRetriever(),
+    returnSourceDocuments: true,
+  });
+}
 ```
+
+以下是 `LangChain.js` 中其他常用的链类型，可以根据不同需求选择使用：
+
+#### LLMChain - 最基础的提示词处理链
+
+将提示模板与语言模型结合的最基础链，是许多其他链的基础组件。
+
+```javascript
+import { LLMChain } from "langchain/chains";
+import { PromptTemplate } from "@langchain/core/prompts";
+
+const prompt = PromptTemplate.fromTemplate(
+  "请为{product}写一个简短的产品描述，面向{audience}用户"
+);
+
+const chain = new LLMChain({
+  llm: model,
+  prompt: prompt
+});
+
+const result = await chain.invoke({
+  product: "智能音箱",
+  audience: "年轻人"
+});
+```
+
+#### ConversationalRetrievalChain - 融合记忆的对话检索链
+
+结合了对话历史记忆和文档检索功能，用于构建能够记住上下文的问答系统。
+
+```javascript
+import { ConversationalRetrievalChain } from "langchain/chains";
+import { BufferMemory } from "langchain/memory";
+
+const memory = new BufferMemory({
+  memoryKey: "chat_history",
+  returnMessages: true,
+  inputKey: "question",
+  outputKey: "text",
+});
+
+const chain = new ConversationalRetrievalChain({
+  retriever: vectorStore.asRetriever(),
+  memory: memory,
+  combineDocumentsChain: loadQAStuffChain(model),
+});
+
+// 首次查询
+const result1 = await chain.invoke({
+  question: "什么是向量数据库?"
+});
+
+// 后续查询(自动包含对话历史)
+const result2 = await chain.invoke({
+  question: "它有哪些优势?"
+});
+```
+
+#### SequentialChain - 按顺序执行的多步链
+
+允许多个链按照特定顺序执行，前一个链的输出可以作为后一个链的输入。
+
+```javascript
+import { SequentialChain, LLMChain } from "langchain/chains";
+
+// 第一个链：生成产品特性
+const featureChain = new LLMChain({
+  llm: model,
+  prompt: PromptTemplate.fromTemplate("列出{product}的三个主要特性"),
+  outputKey: "features",
+});
+
+// 第二个链：根据特性写营销文案
+const copywritingChain = new LLMChain({
+  llm: model,
+  prompt: PromptTemplate.fromTemplate("根据这些特性为{product}写一段营销文案:\n{features}"),
+  outputKey: "marketing_copy",
+});
+
+// 组合成顺序链
+const overallChain = new SequentialChain({
+  chains: [featureChain, copywritingChain],
+  inputVariables: ["product"],
+  outputVariables: ["marketing_copy"],
+});
+
+const result = await overallChain.invoke({
+  product: "智能手表",
+});
+```
+
+#### RouterChain - 智能路由链
+
+根据输入内容动态选择应该使用哪条链进行处理，适合构建能处理多种不同任务的系统。
+
+```javascript
+import { LLMRouterChain, RouterOutputParser } from "langchain/chains";
+
+const productChain = new LLMChain({/*...产品查询链...*/});
+const supportChain = new LLMChain({/*...客服支持链...*/});
+const feedbackChain = new LLMChain({/*...用户反馈链...*/});
+
+const routerChain = LLMRouterChain.fromLLM(
+  model,
+  RouterOutputParser.fromZodSchema(z.object({
+    destination: z.enum(["product", "support", "feedback"]),
+    next_inputs: z.object({
+      query: z.string(),
+    }),
+  }))
+);
+
+const chain = new MultiRouteChain({
+  routerChain,
+  destinationChains: {
+    product: productChain,
+    support: supportChain,
+    feedback: feedbackChain,
+  },
+  defaultChain: new LLMChain({/*...默认链...*/}),
+});
+
+const result = await chain.invoke({
+  input: "我想了解你们的新产品"
+});
+```
+
+这些链可以根据实际需求组合使用，`LangChain.js` 的强大之处就在于它提供了高度模块化的组件，使开发者能够灵活构建各种复杂的LLM应用。在本项目中，我们主要使用了 `RetrievalQAChain` 来实现基于知识库的问答功能，结合 `BufferMemory` 实现多轮对话能力。
 
 ### 6. 代理（Agents）
 
-能够根据用户输入动态选择工具和执行步骤的系统。
+能够根据用户输入动态选择工具和执行步骤的系统。在本项目中，使用了 `LangChain` 的代理功能实现智能路由和增强回答能力：
 
 ```javascript
+// 从server/services/agentService.js的实际实现
+import { Serper } from "@langchain/community/tools/serper";
+import { Tool } from "@langchain/core/tools";
 import { initializeAgentExecutorWithOptions } from "langchain/agents";
-const executor = await initializeAgentExecutorWithOptions(tools, model, options);
+import { createEmbeddingModel } from "./embeddings.js";
+import { addToMemory } from "./memoryService.js";
+import { createChatModel } from "./queryService.js";
+import { loadVectorStore, similaritySearch } from "./vectorStore.js";
+
+/**
+ * 创建一个自定义的知识库工具
+ * @param {string} vectorStorePath 向量存储路径
+ * @param {number} similarityThreshold 相似度阈值
+ * @returns {Tool} 知识库工具
+ */
+export function createKnowledgeBaseTool(
+  vectorStorePath,
+  similarityThreshold = 0.6
+) {
+  class KnowledgeBaseTool extends Tool {
+    name = "knowledge_base";
+    description = "用于在知识库中搜索相关内容。输入是用户查询文本。";
+    vectorStorePath;
+    threshold;
+
+    constructor(vectorStorePath, threshold) {
+      super();
+      this.vectorStorePath = vectorStorePath;
+      this.threshold = threshold;
+    }
+
+    async _call(query) {
+      try {
+        const embeddings = createEmbeddingModel();
+        const vectorStore = await loadVectorStore(
+          this.vectorStorePath,
+          embeddings
+        );
+
+        // 执行相似度搜索
+        const results = await similaritySearch(
+          vectorStore,
+          query,
+          4,
+          this.threshold
+        );
+
+        if (results.length === 0) {
+          return "在知识库中未找到相关信息。";
+        }
+
+        // 提取结果内容并格式化
+        const formattedResults = results
+          .map(([doc, score], index) => {
+            return `[${index + 1}] 相关度: ${score.toFixed(2)}\n${
+              doc.pageContent
+            }\n来源: ${doc.metadata.source || "未知"}\n`;
+          })
+          .join("\n");
+
+        return `在知识库中找到以下相关内容:\n${formattedResults}`;
+      } catch (error) {
+        console.error("知识库搜索失败:", error);
+        return `知识库搜索出错: ${error.message}`;
+      }
+    }
+  }
+
+  return new KnowledgeBaseTool(vectorStorePath, similarityThreshold);
+}
+
+/**
+ * 使用Agent执行智能查询
+ * @param {string} query 用户查询
+ * @param {Object} options 选项
+ * @returns {Promise<object>} 查询结果
+ */
+export async function executeAgentQuery(query, options) {
+  const {
+    vectorStorePath,
+    apiKey,
+    apiEndpoint,
+    modelName = "gpt-3.5-turbo",
+    similarityThreshold = 0.6,
+    sessionId = null,
+    verbose = false,
+  } = options;
+
+  try {
+    console.log(
+      `使用Agent执行智能查询: "${query.substring(0, 100)}${
+        query.length > 100 ? "..." : ""
+      }"`
+    );
+
+    // 创建LLM模型
+    const llm = createChatModel(apiKey, modelName, apiEndpoint);
+
+    // 创建工具集合
+    const tools = [
+      // 网络搜索工具
+      new Serper({
+        apiKey: process.env.SERPER_API_KEY,
+        gl: "cn", // 地区设置为中国
+        hl: "zh-cn", // 语言设置为中文
+      }),
+      // 知识库搜索工具
+      createKnowledgeBaseTool(vectorStorePath, similarityThreshold),
+    ];
+
+    // 初始化Agent
+    const executor = await initializeAgentExecutorWithOptions(tools, llm, {
+      agentType: "openai-functions",
+      verbose: verbose || process.env.DEBUG === "true",
+      handleParsingErrors: true, // 处理解析错误
+      maxIterations: 5, // 最大迭代次数，防止无限循环
+    });
+
+    console.log("Agent已初始化，开始执行查询...");
+
+    // 执行查询
+    const result = await executor.invoke({
+      input: `${query} 请根据问题内容，判断应该使用网络搜索还是知识库搜索，或者两者都使用。请用中文回答，保持回答简洁明了。`,
+    });
+
+    const answer = result.output;
+
+    // 如果有会话ID，将对话添加到记忆中
+    if (sessionId) {
+      await addToMemory(sessionId, query, answer);
+    }
+
+    return {
+      answer,
+      source: "agent",
+      usedGeneralModel: false,
+      usedWebSearch: true,
+      usedKnowledgeBase: true,
+    };
+  } catch (error) {
+    console.error("Agent执行查询失败:", error);
+    throw error;
+  }
+}
 ```
 
-## 前端实现：Vue3客户端
+在本项目中，代理系统通过以下方式增强了智能客服能力：
 
-我们的前端使用Vue3构建，提供直观的用户界面进行文档上传和交互式对话。
+1.  **工具集成**：将网络搜索和知识库搜索集成为工具，供代理使用
+2.  **动态决策**：代理会根据用户问题的性质，自动决定使用哪种工具
+3.  **统一接口**：通过 `executeAgentQuery` 函数提供与普通查询相同的接口，便于集成
+4.  **思维链追踪**：支持 `verbose` 模式，可以查看代理的决策过程，便于调试
+
+路由系统也实现了一个简化版的判断功能，用于确定是否需要网络搜索：
+
+```javascript
+// 从server/services/webSearchService.js的实际实现
+export async function determineQueryType(query, llm) {
+  try {
+    // 创建专用于判断的LLM实例
+    const determineModel = createChatModel(null, "gpt-3.5-turbo");
+    determineModel.temperature = 0;
+    determineModel.maxTokens = 200;
+
+    // 判断问题类型的提示
+    const prompt = `分析以下用户问题，判断它是否需要最新信息或事实查询（如新闻、天气、日期、时间等实时信息）。
+问题: "${query}"
+
+请只返回 "SEARCH" 或 "GENERAL" 其中之一，不要返回其他内容:
+- "SEARCH": 如果问题询问的是时事、新闻、当前日期/时间、天气、最新发布、实时状态等需要实时或网络搜索的信息
+- "GENERAL": 如果问题是通用知识、概念解释、编程帮助、个人建议等不需要最新信息的内容`;
+
+    const response = await determineModel.invoke(prompt);
+    const result =
+      typeof response === "string" ? response.trim() : response.content.trim();
+
+    console.log(`问题类型判断结果: ${result} (查询: "${query}")`);
+
+    return {
+      needsSearch: result.includes("SEARCH"),
+      reasoningResult: result,
+    };
+  } catch (error) {
+    console.error("判断查询类型失败:", error);
+    // 默认返回需要搜索，作为回退策略
+    return { needsSearch: true, reasoningResult: "SEARCH (默认回退)" };
+  }
+}
+```
+
+代理系统的用户体验在前端也得到了增强：
+
+```javascript
+// 从client/App.vue的相关部分
+if (response.data.success) {
+  // 主要回答
+  chatHistory.value.push({
+    role: 'assistant',
+    content: response.data.answer || '未找到相关答案',
+    usedGeneralModel: response.data.usedGeneralModel,
+    usedWebSearch: response.data.usedWebSearch,
+    usedAgent: response.data.usedAgent
+  });
+  
+  // 如果使用了Agent，显示Agent信息
+  if (response.data.usedAgent) {
+    chatHistory.value.push({
+      role: 'system',
+      content: '通过智能代理提供的回答'
+    });
+  }
+  // 如果使用了网络搜索，显示搜索结果来源
+  else if (response.data.usedWebSearch && response.data.searchResults && response.data.searchResults.length > 0) {
+    const searchResults = response.data.searchResults;
+    const resultInfo = "网络搜索结果来源：\n" + 
+      searchResults.map((result, index) => 
+        `- [${index + 1}] ${result.title} (${result.displayLink})`
+      ).join('\n');
+    
+    chatHistory.value.push({
+      role: 'system',
+      content: resultInfo
+    });
+  }
+}
+```
+
+## 前端实现
+
+我们的前端使用 `Vue3` 构建，提供直观的用户界面进行文档上传和交互式对话。
 
 ### 关键组件
 
 前端界面主要包含两个核心功能区域：
 
-1. **文档上传与管理**：允许用户上传文档并构建知识库
-2. **对话界面**：进行基于知识库的智能问答
+1.  **文档上传与管理**：允许用户上传文档并构建知识库
+2.  **查询设置**：可以选择是否开启记忆、网络搜索、agent 代理，设置相似度阈值等
+3.  **对话界面**：进行基于知识库的智能问答
 
 以下是对话界面的关键代码片段：
 
@@ -222,16 +731,16 @@ async function sendQuery() {
 
 ## 后端实现：Express服务
 
-后端使用Express框架，提供RESTful API供前端调用。
+后端使用 `Express` 框架，提供 `RESTful API` 供前端调用。
 
 ### 路由系统
 
 服务端的路由主要分为两部分：
 
-1. **文档路由**：处理文档上传、分割、向量化等
-2. **查询路由**：处理用户查询、响应生成等
+1.  **文档路由**：处理文档上传、分割、向量化等
+2.  **查询路由**：处理用户查询、响应生成等
 
-让我们看看查询路由的关键实现：
+路由的关键实现：
 
 ```javascript
 // server/routes/queryRoutes.js
@@ -361,120 +870,247 @@ export async function splitDocuments(documents, chunkSize = 1000, chunkOverlap =
 }
 ```
 
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/5a60f487903b4c5a85cc686662c5ddd6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=gqxSuC478Yujl0juv5AE3dGDHCY%3D)
+
 ### 2. 向量存储
 
 `vectorStore.js`实现了向量存储的创建与查询功能：
 
 ```javascript
 // server/services/vectorStore.js
-import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import fs from "fs";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import path from "path";
 
 /**
- * 加载向量存储
+ * 从序列化数据加载内存向量存储
+ * @param {string} storePath 存储路径
+ * @param {object} embeddings 嵌入模型
+ * @returns {Promise<MemoryVectorStore>} 内存向量存储
  */
-export async function loadVectorStore(vectorStorePath, embeddings) {
-  if (!vectorStorePath) {
-    throw new Error("未提供向量存储路径");
+export async function loadVectorStore(storePath, embeddings) {
+  const jsonPath = `${storePath}.json`;
+
+  if (!fs.existsSync(jsonPath)) {
+    throw new Error(`向量存储路径不存在: ${jsonPath}`);
   }
 
-  // 确保目录存在
-  const directory = path.dirname(vectorStorePath);
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
+  if (!embeddings) {
+    throw new Error("未提供嵌入模型");
   }
 
-  // 如果向量存储已存在，则加载
-  if (fs.existsSync(vectorStorePath)) {
-    console.log(`从 ${vectorStorePath} 加载现有向量存储`);
-    return await HNSWLib.load(vectorStorePath, embeddings);
-  }
+  try {
+    console.log(`从 ${jsonPath} 加载内存向量存储`);
 
-  // 否则创建新的向量存储
-  console.log(`在 ${vectorStorePath} 创建新的向量存储`);
-  return new HNSWLib(embeddings, {
-    space: "cosine",
-    numDimensions: 1536, // 根据嵌入模型调整
-  });
+    // 读取序列化数据
+    const serialized = fs.readFileSync(jsonPath, "utf-8");
+    const data = JSON.parse(serialized);
+
+    // 创建新的内存向量存储
+    const vectorStore = new MemoryVectorStore(embeddings);
+
+    // 手动设置内存向量
+    vectorStore.memoryVectors = data.vectors;
+    vectorStore.documentIds = data.documentIds;
+
+    return vectorStore;
+  } catch (error) {
+    console.error("加载向量存储失败:", error);
+    throw error;
+  }
 }
 
 /**
- * 执行相似度搜索
+ * 在向量存储中进行相似度搜索
+ * @param {MemoryVectorStore} vectorStore 向量存储
+ * @param {string} query 查询文本
+ * @param {number} k 返回结果数量
+ * @param {number} threshold 相似度阈值（0-1），低于此阈值的结果将被过滤
+ * @returns {Promise<Array>} 相似文档数组和得分
  */
-export async function similaritySearch(vectorStore, query, k = 4, scoreThreshold = 0.6) {
-  const rawResults = await vectorStore.similaritySearchWithScore(query, k);
-  
-  // 过滤低于阈值的结果
-  return rawResults.filter(([_, score]) => score >= scoreThreshold);
+export async function similaritySearch(
+  vectorStore,
+  query,
+  k = 4,
+  threshold = 0.0
+) {
+  if (!vectorStore) {
+    throw new Error("未提供向量存储");
+  }
+
+  if (!query || query.trim().length === 0) {
+    throw new Error("查询文本为空");
+  }
+
+  try {
+    console.log(`在向量存储中搜索: "${query}"`);
+
+    // 使用带分数的搜索
+    const resultsWithScore = await vectorStore.similaritySearchWithScore(
+      query,
+      k
+    );
+
+    // 如果设置了阈值，过滤低于阈值的结果
+    const filteredResults =
+      threshold > 0
+        ? resultsWithScore.filter(([, score]) => score >= threshold)
+        : resultsWithScore;
+
+    console.log(
+      `找到 ${filteredResults.length} 个相关文档，阈值: ${threshold}`
+    );
+
+    // 返回文档和分数
+    return filteredResults;
+  } catch (error) {
+    console.error("相似度搜索失败:", error);
+    throw error;
+  }
 }
 ```
 
-在本项目中，我们选择了HNSWLib作为向量存储方案。HNSW（Hierarchical Navigable Small World）是一种高效的近似最近邻搜索算法，具有查询速度快、内存占用相对较低的特点，适合在生产环境中使用。与其他向量数据库（如Pinecone、Milvus）相比，HNSWLib的优势在于它可以在本地文件系统中运行，无需额外的服务部署，非常适合中小规模应用。
+在本项目中，我们选择了 `MemoryVectorStore` 作为向量存储方案。`MemoryVectorStore` 是 `LangChain` 内置的一种内存向量存储实现，适合中小规模应用，具有以下特点：
+
+1.  **本地内存存储**：所有向量都保存在内存中，适合快速开发和测试
+2.  **序列化支持**：通过 `JSON序列化` 保存到文件系统，方便持久化
+3.  **简单集成**：无需额外依赖，直接集成到 `Node.js` 应用
+4.  **高效检索**：支持余弦相似度等多种相似度计算方法
 
 向量存储的核心功能包括：
-1. **存储文档向量**：将文档的向量表示持久化存储
-2. **相似度搜索**：根据查询向量快速检索最相似的文档
-3. **过滤低相关度结果**：通过阈值控制，确保只返回相关性足够高的文档
 
-通过`scoreThreshold`参数，我们可以灵活调整相似度阈值，在查询精度和召回率之间取得平衡。在实际应用中，这个阈值通常需要根据业务场景和文档特性进行调整，推荐在0.5-0.8之间进行测试。
+1.  **存储文档向量**：将文档的向量表示持久化存储
+2.  **相似度搜索**：根据查询向量快速检索最相似的文档
+3.  **过滤低相关度结果**：通过阈值控制，确保只返回相关性足够高的文档
+
+通过`threshold`参数，我们可以灵活调整相似度阈值，在查询精度和召回率之间取得平衡。在实际应用中，这个阈值通常需要根据业务场景和文档特性进行调整，推荐在 `0.5-0.8` 之间进行测试。
 
 ### 3. 嵌入模型
 
-`embeddings.js`负责将文本转换为向量表示：
+在 [硅基流动](https://cloud.siliconflow.cn/models?types=embedding) 中选择一个适合的嵌入模型
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/fb9df0d8ee8744e6987a67171549e9f3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=2xXZvTU7gS8wlGgNNChmuG0S52E%3D)
+
+`embeddings.js` 负责将文本转换为向量：
 
 ```javascript
 // server/services/embeddings.js
-import { OpenAIEmbeddings } from "@langchain/openai";
+import axios from "axios";
 import dotenv from "dotenv";
 
 // 加载环境变量
 dotenv.config();
 
 /**
- * 创建嵌入模型
+ * BGE嵌入模型实现
  */
-export function createEmbeddingModel(apiKey, apiEndpoint) {
-  const actualApiKey = apiKey || process.env.OPENAI_API_KEY;
-  const actualEndpoint = apiEndpoint || process.env.OPENAI_API_ENDPOINT;
+export class BGEEmbeddings {
+  constructor() {
+    this.apiKey = process.env.EMBEDDING_API_KEY;
+    this.apiUrl = process.env.EMBEDDING_ENDPOINT;
+    this.modelName = process.env.EMBEDDING_MODEL;
 
-  const options = {
-    openAIApiKey: actualApiKey,
-    modelName: "text-embedding-ada-002",
-    dimensions: 1536,
-    stripNewLines: true,
-  };
+    this.client = axios.create({
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-  // 如果指定了自定义API端点
-  if (actualEndpoint) {
-    options.configuration = {
-      baseURL: actualEndpoint,
-    };
+    console.log(`初始化嵌入模型: ${this.modelName}`);
+    console.log(`API端点: ${this.apiUrl}`);
   }
 
-  return new OpenAIEmbeddings(options);
+  /**
+   * 嵌入文档
+   * @param {Array<string>} texts 文本数组
+   * @returns {Promise<Array<Array<number>>>} 嵌入向量数组
+   */
+  async embedDocuments(texts) {
+    if (!texts || texts.length === 0) {
+      throw new Error("没有提供文本进行嵌入");
+    }
+
+    try {
+      console.log(`嵌入 ${texts.length} 个文本`);
+
+      // 批次处理，每批最多处理10个文本
+      const batchSize = 10;
+      const batches = [];
+
+      for (let i = 0; i < texts.length; i += batchSize) {
+        batches.push(texts.slice(i, i + batchSize));
+      }
+
+      console.log(`将文本分为 ${batches.length} 批进行处理`);
+
+      // 处理每一批
+      const embeddings = [];
+      for (const batch of batches) {
+        const batchEmbeddings = await this._embedBatch(batch);
+        embeddings.push(...batchEmbeddings);
+      }
+
+      return embeddings;
+    } catch (error) {
+      console.error("嵌入文档失败:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 嵌入查询
+   * @param {string} text 查询文本
+   * @returns {Promise<Array<number>>} 嵌入向量
+   */
+  async embedQuery(text) {
+    if (!text || text.trim().length === 0) {
+      throw new Error("没有提供查询文本进行嵌入");
+    }
+
+    try {
+      const embeddings = await this._embedBatch([text]);
+      return embeddings[0];
+    } catch (error) {
+      console.error("嵌入查询失败:", error);
+      throw error;
+    }
+  }
+}
+
+/**
+ * 创建嵌入模型的工厂函数
+ * @returns {BGEEmbeddings} 嵌入模型实例
+ */
+export function createEmbeddingModel() {
+  return new BGEEmbeddings();
 }
 ```
 
-嵌入模型是RAG系统的核心组件，负责将文本转化为高维向量空间中的点。在本项目中，我们使用OpenAI的text-embedding-ada-002模型，它能够生成1536维的向量表示，在语义捕捉和相似度计算方面表现出色。
+嵌入模型是 `RAG` 系统的核心组件，负责将文本转化为高维向量空间中的点。在本项目中，我们使用硅基流动免费的 `BGE嵌入模型`，它是一个优秀的开源嵌入模型，通过 `API` 调用方式集成到系统中。
 
 嵌入模型工作原理：
-1. **文本编码**：接收文本输入，进行分词和编码处理
-2. **特征提取**：通过深度神经网络提取文本的语义特征
-3. **向量生成**：将特征映射到高维向量空间
-4. **向量归一化**：确保向量的长度统一，便于后续计算余弦相似度
+
+1.  **文本编码**：接收文本输入，进行分词和编码处理
+2.  **特征提取**：通过深度神经网络提取文本的语义特征
+3.  **向量生成**：将特征映射到高维向量空间
+4.  **向量归一化**：确保向量的长度统一，便于后续计算余弦相似度
 
 在实际应用中，我们将同一嵌入模型用于两个场景：
-1. **文档向量化**：在知识库构建阶段，将文档片段转换为向量并存储
-2. **查询向量化**：在查询阶段，将用户问题转换为向量并与知识库进行相似度匹配
+
+1.  **文档向量化**：在知识库构建阶段，将文档片段转换为向量并存储
+2.  **查询向量化**：在查询阶段，将用户问题转换为向量并与知识库进行相似度匹配
 
 通过使用相同的嵌入模型，确保文档和查询在同一向量空间中进行比较，从而获得准确的相似度计算结果。
 
-值得注意的是，我们提供了自定义API端点的能力，这使得系统可以连接到与OpenAI API兼容的其他服务提供商，如Azure OpenAI Service或本地部署的兼容模型，增强了系统的灵活性和适应性。
+BGEEmbeddings实现了批量处理功能，通过将大量文本分批处理，有效避免API限制和内存问题，提高了系统的稳定性和扩展性。
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/160d0f4d73b742d3bbaab7193de8f4f6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=BXkZLtIfpNeTNi4x5nyvCRHMNsU%3D)
 
 ### 4. 会话记忆
 
-`memoryService.js`实现了对话历史的记忆功能，使用LangChain的BufferMemory：
+`memoryService.js`实现了对话历史的记忆功能，使用 LangChain 的 BufferMemory：
 
 ```javascript
 // server/services/memoryService.js
@@ -485,6 +1121,8 @@ const memoryInstances = new Map();
 
 /**
  * 获取或创建一个会话记忆
+ * @param {string} sessionId 会话ID
+ * @returns {BufferMemory} 会话记忆实例
  */
 export function getMemoryForSession(sessionId) {
   if (!sessionId) {
@@ -508,7 +1146,7 @@ export function getMemoryForSession(sessionId) {
     inputKey: "input",
     outputKey: "output",
   });
-  
+
   memoryInstances.set(sessionId, memory);
   console.log(`为会话 ${sessionId} 创建了新的记忆实例`);
 
@@ -517,6 +1155,10 @@ export function getMemoryForSession(sessionId) {
 
 /**
  * 将新的对话轮次添加到记忆中
+ * @param {string} sessionId 会话ID
+ * @param {string} humanInput 用户输入
+ * @param {string} aiOutput AI回答
+ * @returns {Promise<void>}
  */
 export async function addToMemory(sessionId, humanInput, aiOutput) {
   if (!sessionId) return;
@@ -533,47 +1175,119 @@ export async function addToMemory(sessionId, humanInput, aiOutput) {
 
     // 获取会话记忆
     const memory = getMemoryForSession(sessionId);
-    
+
     // 添加新的消息到记忆
-    await memory.saveContext(
-      { input: inputText },
-      { output: outputText }
-    );
-    
+    await memory.saveContext({ input: inputText }, { output: outputText });
+
     console.log(`已将对话添加到会话 ${sessionId} 的记忆中`);
   } catch (error) {
     console.error(`向记忆添加对话失败:`, error);
   }
 }
+
+/**
+ * 获取格式化的历史消息文本
+ * @param {string} sessionId 会话ID
+ * @returns {Promise<string>} 格式化的历史文本
+ */
+export async function getFormattedHistory(sessionId) {
+  if (!sessionId) return "";
+
+  try {
+    const memory = getMemoryForSession(sessionId);
+    const { chat_history } = await memory.loadMemoryVariables({});
+
+    if (!chat_history || chat_history.length === 0) return "";
+
+    // 将消息格式化为文本
+    return chat_history
+      .map((msg) => {
+        const role = msg._getType() === "human" ? "用户" : "AI";
+        return `${role}: ${msg.content}`;
+      })
+      .join("\n");
+  } catch (error) {
+    console.error("获取格式化历史失败:", error);
+    return "";
+  }
+}
 ```
+
+能够自动存储到 `localStorage` 中，便于查看与调试：
+
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d1c684af308f4a05a1fbec19f57d15c3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=R2CJV6V0wtU40LkG0D7TguBzdos%3D)
 
 会话记忆是智能客服系统的关键组件，使AI能够理解多轮对话的上下文，从而提供连贯、个性化的回复。在本项目中，我们采用LangChain内置的BufferMemory组件，它提供了以下优势：
 
-1. **标准化接口**：提供了统一的记忆管理接口，简化了与LangChain其他组件的集成
-2. **消息序列化**：自动处理消息对象的序列化和反序列化
-3. **会话上下文管理**：专为对话场景设计，优化了上下文传递
-4. **兼容性保证**：与LangChain的链和代理系统无缝集成
+1.  **标准化接口**：提供了统一的记忆管理接口，简化了与LangChain其他组件的集成
+2.  **消息序列化**：自动处理消息对象的序列化和反序列化
+3.  **会话上下文管理**：专为对话场景设计，优化了上下文传递
+4.  **兼容性保证**：与LangChain的链和代理系统无缝集成
 
 BufferMemory的核心配置参数包括：
-- **returnMessages**: 设置为true时返回消息对象而非字符串，便于后续处理
-- **memoryKey**: 定义在输出变量中用于存储对话历史的键名
-- **inputKey**: 用户输入在上下文中的键名
-- **outputKey**: AI输出在上下文中的键名
 
-在实现中，我们仍使用Map作为内存缓存，每个会话通过唯一sessionId映射到各自的BufferMemory实例。这种设计保持了会话之间的严格隔离，同时利用了LangChain提供的记忆管理功能。
+*   **returnMessages**: 设置为true时返回消息对象而非字符串，便于后续处理
+*   **memoryKey**: 定义在输出变量中用于存储对话历史的键名，本项目使用"chat\_history"
+*   **inputKey**: 用户输入在上下文中的键名，本项目使用"input"
+*   **outputKey**: AI输出在上下文中的键名，本项目使用"output"
+
+在实现中，我们使用Map作为内存缓存，每个会话通过唯一sessionId映射到各自的BufferMemory实例。这种设计保持了会话之间的严格隔离，同时利用了LangChain提供的记忆管理功能。
+
+### 记忆模块在查询服务中的应用
+
+记忆模块的关键是与查询服务的正确集成。在`queryService.js`中，我们以异步方式使用记忆功能：
+
+```javascript
+// 使用会话记忆
+if (sessionId) {
+  console.log(`使用会话ID: ${sessionId} 的记忆处理问题`);
+
+  // 获取历史记录文本 - 修复异步调用
+  const historyText = await getFormattedHistory(sessionId);
+
+  // 构建提示模板
+  const template = historyText
+    ? `以下是之前的对话历史:
+${historyText}
+
+基于以上历史，回答用户的问题: {question}
+请用中文简明扼要地回答:`
+    : `请回答以下问题，如果你不确定答案，请直接说不知道，不要编造信息。
+
+问题: {question}
+
+请用中文简明扼要地回答:`;
+
+  const prompt = PromptTemplate.fromTemplate(template);
+  const formattedPrompt = await prompt.format({ question: query });
+
+  // 使用LLM直接调用
+  const response = await llm.invoke(formattedPrompt);
+  const answer = typeof response === "string" ? response : response.content;
+
+  // 更新会话历史
+  await addToMemory(sessionId, query, answer);
+
+  return answer;
+}
+```
+
+需要特别注意的是，由于记忆操作涉及异步读写，所有记忆相关的方法都需要使用`await`关键字进行调用，确保操作按顺序完成。这也是我们在优化代码过程中发现的一个重要问题——遗漏`await`关键字会导致上下文无法正确串联。
 
 会话记忆的工作流程：
-1. **会话初始化**：首次交互时创建新的BufferMemory实例
-2. **消息存储**：通过saveContext方法存储输入和输出对，自动处理消息格式转换
-3. **上下文检索**：通过loadMemoryVariables方法获取格式化的对话历史
-4. **会话维护**：通过sessionId管理不同用户的会话，支持清除单个或所有会话
 
-BufferMemory实现了简单但高效的完整对话历史记忆模式。在实际应用中，当对话历史增长较长时，可以考虑使用LangChain提供的其他记忆类型，如：
-- **BufferWindowMemory**：仅保留最近n轮对话，控制上下文长度
-- **ConversationSummaryMemory**：使用LLM对长对话进行摘要，减少token消耗
-- **CombinedMemory**：组合多种记忆类型，满足复杂场景需求
+1.  **会话初始化**：首次交互时创建新的 `BufferMemory` 实例
+2.  **消息存储**：通过 `saveContex` t方法异步存储输入和输出对
+3.  **上下文检索**：通过 `loadMemoryVariables` 方法异步获取格式化的对话历史
+4.  **会话维护**：通过 `sessionId` 管理不同用户的会话，支持清除单个或所有会话
 
-使用LangChain内置记忆组件不仅简化了代码实现，还提供了更丰富的扩展可能性，是构建复杂对话系统的理想选择。
+`BufferMemory` 实现了简单但高效的完整对话历史记忆模式。在实际应用中，当对话历史增长较长时，可以考虑使用`LangChain` 提供的其他记忆类型，如：
+
+*   **BufferWindowMemory**：仅保留最近n轮对话，控制上下文长度
+*   **ConversationSummaryMemory**：使用LLM对长对话进行摘要，减少token消耗
+*   **CombinedMemory**：组合多种记忆类型，满足复杂场景需求
+
+使用 `LangChain` 内置记忆组件不仅简化了代码实现，还提供了更丰富的扩展可能性，是构建复杂对话系统的理想选择。同时，在使用时需要注意正确处理异步操作，确保记忆功能能够正常工作。
 
 ### 5. 查询服务
 
@@ -696,6 +1410,10 @@ export async function executeQuery(query, options) {
 
 ### 6. 网络搜索
 
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d123ab26fd3243a6a346f198e424e79d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748156036&x-orig-sign=50RdgQWEtc6xx7V7qMYv7Q47wFg%3D)
+
+请提前在 [serper](https://serper.dev/) 自行申请一个 `apikey`
+
 `webSearchService.js`实现了网络搜索功能，增强大模型的实时信息获取能力：
 
 ```javascript
@@ -799,135 +1517,38 @@ ${searchContext}
 }
 ```
 
-网络搜索功能是增强RAG系统实时性和全面性的关键组件，特别适用于以下场景：
-1. **知识库无法覆盖的问题**：当用户询问知识库中不存在的信息时
-2. **需要最新信息的查询**：对于涉及时效性的问题（如近期新闻、产品更新等）
-3. **事实性验证**：需要对特定事实进行确认或补充的情况
+网络搜索功能是增强 `RAG` 系统实时性和全面性的关键组件，特别适用于以下场景：
 
-在本项目中，我们实现了一个基于Serper API的网络搜索服务。Serper是一个Google搜索API服务，提供了结构化的搜索结果，非常适合程序化处理。我们的实现包含以下核心技术点：
+1.  **知识库无法覆盖的问题**：当用户询问知识库中不存在的信息时
+2.  **需要最新信息的查询**：对于涉及时效性的问题（如近期新闻、产品更新等）
+3.  **事实性验证**：需要对特定事实进行确认或补充的情况
 
-**1. 缓存机制**
-- 使用内存Map实现简单高效的缓存
-- 基于查询文本的规范化键（小写处理、去除多余空格）
-- 缓存条目设置1小时的生存时间（TTL），平衡实时性和性能
-- 自动清理过期缓存条目
-
-**2. 搜索结果处理**
-- 仅提取搜索结果中的organic部分（自然搜索结果）
-- 限制结果数量为前3条，避免信息过载
-- 对结果进行结构化处理，提取标题、链接和摘要
-
-**3. LLM增强总结**
-- 将搜索结果作为上下文提供给语言模型
-- 使用temperature=0参数，使输出更加确定性和事实性
-- 定制提示词引导模型生成简洁准确的回答
-- 支持多语言输出（本项目默认使用中文）
-
-**4. 错误处理与容错**
-- 完善的API密钥检查机制
-- 全面的错误捕获和友好的错误信息展示
-- 当搜索失败时提供后备回答
-
-网络搜索服务的集成使得系统能够突破静态知识库的限制，为用户提供更全面、更及时的信息。在实际应用中，这一功能特别适合处理涉及新闻事件、产品更新、技术动态等时效性较强的问题。
-
-**性能优化考虑**:
-与直接调用大型语言模型相比，网络搜索API调用通常需要更长的响应时间。为了平衡用户体验和信息质量，系统会优先使用本地知识库回答问题，仅在本地知识不足时才触发网络搜索。缓存机制的引入进一步减少了重复查询的响应时间，显著提升了系统性能。
+在本项目中，我们实现了一个基于 `Serper API` 的网络搜索服务。`Serper` 是一个 `Google` 搜索 `API` 服务，提供了结构化的搜索结果，非常适合程序化处理。
 
 ## 项目总结
 
-通过本项目，我们构建了一个完整的基于LangChain.js的智能客服平台，实现了以下核心功能：
+通过本项目，我们构建了一个完整的基于 `LangChain.js` 的智能客服平台，实现了以下核心功能：
 
-1. **文档处理与向量化**：将各种格式的文档转换为可检索的向量形式
-2. **智能查询路由**：根据查询内容智能选择使用本地知识库、通用模型或网络搜索
-3. **会话记忆**：实现多轮对话，保持上下文连贯性
-4. **智能代理**：自动决策使用哪种工具回答用户问题
-5. **网络搜索增强**：通过实时网络搜索弥补知识库的不足
-
-### 架构优势与技术选型
-
-在实现过程中，我们采用了如下技术架构和选型原则：
-
-1. **模块化设计**：系统被分解为多个高内聚、低耦合的服务模块，每个模块负责特定的功能域
-2. **适配器模式**：通过统一的接口适配不同的文档加载器、嵌入模型和向量存储
-3. **策略模式**：根据查询特性动态选择最佳回答策略（本地知识、通用模型、网络搜索）
-4. **工厂模式**：用于创建和管理不同类型的服务实例
-5. **缓存策略**：在关键环节（如网络搜索、向量计算）实现缓存，优化性能
-
-从技术栈角度看，本项目的优势包括：
-
-1. **前后端分离**：Vue3前端与Express后端分离，便于独立开发和维护
-2. **TypeScript支持**：核心代码使用TypeScript，提供类型安全和开发效率
-3. **现代化UI**：使用Vue3 Composition API构建响应式、可维护的UI组件
-4. **RESTful API**：通过规范的API接口实现前后端通信
-5. **环境变量配置**：使用dotenv管理敏感配置，提高部署灵活性和安全性
+1.  **文档处理与向量化**：将各种格式的文档转换为可检索的向量形式
+2.  **智能查询路由**：根据查询内容智能选择使用本地知识库、通用模型或网络搜索
+3.  **会话记忆**：实现多轮对话，保持上下文连贯性
+4.  **智能代理**：自动决策使用哪种工具回答用户问题
+5.  **网络搜索增强**：通过实时网络搜索弥补知识库的不足
 
 ### LangChain.js在项目中的应用价值
 
-LangChain.js作为一个强大的LLM应用开发框架，在本项目中展现出以下优势：
+`LangChain.js` 作为一个强大的LLM应用开发框架，在本项目中展现出以下优势：
 
-1. **组件化开发**：提供了丰富的预构建组件，如文档加载器、文本分割器、向量存储等
-2. **链式调用**：能够将多个处理步骤组合为统一的调用链，简化复杂流程
-3. **提示词工程**：内置提示词模板系统，便于管理和优化与LLM的交互
-4. **代理系统**：支持基于工具的智能代理，使AI能够根据需要选择不同功能
-5. **多模型支持**：与多种LLM和嵌入模型兼容，提供更大的灵活性
-
-### 性能与扩展性考量
-
-在构建类似系统时，需要考虑以下性能和扩展性因素：
-
-1. **向量数据库选择**：
-   - 小规模应用可使用本项目采用的HNSWLib或Chroma本地解决方案
-   - 大规模应用应考虑Pinecone、Milvus等分布式向量数据库
-   - 超大规模应用可考虑基于PostgreSQL的pgvector等企业级方案
-
-2. **嵌入模型选择**：
-   - OpenAI的text-embedding-ada-002提供高质量但有API费用
-   - 开源选项如BAAI/bge-large-zh可本地部署，减少依赖和成本
-   - 特定领域可考虑使用领域适应的嵌入模型提高准确率
-
-3. **LLM选择**：
-   - 对于高质量回答，推荐使用GPT-4或Claude等高端模型
-   - 成本敏感场景可使用GPT-3.5-Turbo或Llama 2等性价比更高的选项
-   - 私有部署场景可考虑Llama 2、Qwen、Baichuan等开源模型
-
-4. **水平扩展**：
-   - 系统设计支持通过添加更多服务器实例进行水平扩展
-   - 无状态设计允许负载均衡和容错
-   - 缓存层设计支持分布式缓存系统集成
-
-### 未来优化方向
-
-对于本系统的进一步发展，可以考虑以下优化方向：
-
-1. **知识库管理**：
-   - 实现知识库版本控制和差异更新
-   - 添加知识条目的来源追踪和更新时间管理
-   - 实现自动化的知识库质量评估和优化
-
-2. **智能路由增强**：
-   - 引入基于意图识别的查询分类
-   - 实现多级路由策略，根据问题特性选择最佳处理流程
-   - 添加自适应阈值调整，优化相似度匹配准确率
-
-3. **多模态支持**：
-   - 扩展系统以处理图像、音频等多模态输入
-   - 实现基于多模态模型的综合理解和回答能力
-   - 支持图表、图像等富媒体回答形式
-
-4. **性能优化**：
-   - 实现分布式向量检索和并行处理
-   - 优化长文本处理的内存使用和速度
-   - 添加预热机制，减少冷启动时间
-
-5. **监控与分析**：
-   - 实现详细的查询性能监控和分析
-   - 添加用户反馈收集和分析系统
-   - 建立自动化的模型性能评估和优化流程
+1.  **组件化开发**：提供了丰富的预构建组件，如文档加载器、文本分割器、向量存储等
+2.  **链式调用**：能够将多个处理步骤组合为统一的调用链，简化复杂流程
+3.  **提示词工程**：内置提示词模板系统，便于管理和优化与LLM的交互
+4.  **代理系统**：支持基于工具的智能代理，使AI能够根据需要选择不同功能
+5.  **多模型支持**：与多种LLM和嵌入模型兼容，提供更大的灵活性
 
 ## 结语
 
-LangChain.js为开发者提供了构建复杂AI应用的强大工具集，大幅简化了大语言模型应用的开发流程。本项目展示了如何将这一框架应用于实际业务场景，构建一个功能完整的智能客服平台。
+`LangChain.js` 为开发者提供了构建复杂 `AI` 应用的强大工具集，大幅简化了大语言模型应用的开发流程。
 
 通过组合文档处理、向量存储、智能查询、会话记忆和网络搜索等功能，我们创建了一个既能利用专有知识库又能获取实时信息的智能系统。这种方法不仅提高了回答的相关性和准确性，还大幅降低了开发复杂AI应用的技术门槛。
 
-随着大语言模型技术的持续发展，我们可以预见更多创新应用场景的出现。持续学习和实践这些技术，将使开发者能够在这个快速发展的领域保持竞争力，并创造更多有价值的AI解决方案。
+如果觉得本文对您有帮助，可以收藏一波，也希望能够给项目仓库点个 star\~
