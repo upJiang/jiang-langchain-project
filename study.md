@@ -17,9 +17,9 @@ theme: z-blue
 
 项目运行截图：
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/70ddd6a5c8204c949f3db800065bded9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=40rNf0VwaMogslISqKfL44IPs2I%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/70ddd6a5c8204c949f3db800065bded9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=%2F11YQuJ62GOHfsFlZpSTYcOGQK0%3D)
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/ff78db4ec86e4d66adef334ccd40a8da~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=sWM86qfBuuetqZaMMe4PgVCupiQ%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/ff78db4ec86e4d66adef334ccd40a8da~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=wx6iiHGIgxbs8EnBxo7UkZH%2BvQM%3D)
 
 看截图是不是很像 `dify/coze` 平台的 `agent` 系统，接下来让我们用 `vue3 + express + langchain.js` 实现这个系统。
 
@@ -195,110 +195,18 @@ return new RetrievalQAChain({
 
 将多个组件连接起来，形成端到端的应用流程。
 
-LangChain.js提供了多种专用链，用于解决不同场景的问题：
+`LangChain.js` 提供了多种专用链，用于解决不同场景的问题：
 
-#### RetrievalQAChain - 基础检索问答链
+#### RetrievalChain (createRetrievalChain) - 融合记忆的对话检索链
 
-用于从向量存储中检索文档并生成答案：
-
-```javascript
-// 从server/services/queryService.js的实际实现
-import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
-
-/**
- * 创建问答链
- */
-export async function createQAChain(
-  llm,
-  vectorStore,
-  promptTemplate,
-  sessionId
-) {
-  // 获取历史记录
-  let historyText = "";
-  if (sessionId) {
-    try {
-      historyText = await getFormattedHistory(sessionId);
-    } catch (error) {
-      console.error("获取历史记录失败:", error);
-    }
-  }
-
-  // 默认提示模板
-  let template;
-  if (sessionId && historyText) {
-    // 带上下文的提示模板
-    template =
-      promptTemplate ||
-      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
-
-信息:
-{context}
-
-对话历史:
-${historyText}
-
-用户问题: {question}
-
-请用中文简明扼要地回答:`;
-  } else {
-    // 无上下文的提示模板
-    template =
-      promptTemplate ||
-      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
-
-信息:
-{context}
-
-用户问题: {question}
-
-请用中文简明扼要地回答:`;
-  }
-
-  const PROMPT = PromptTemplate.fromTemplate(template);
-
-  // 创建问答链
-  return new RetrievalQAChain({
-    combineDocumentsChain: loadQAStuffChain(llm, { prompt: PROMPT }),
-    retriever: vectorStore.asRetriever(),
-    returnSourceDocuments: true,
-  });
-}
-```
-
-以下是 `LangChain.js` 中其他常用的链类型，可以根据不同需求选择使用：
-
-#### LLMChain - 最基础的提示词处理链
-
-将提示模板与语言模型结合的最基础链，是许多其他链的基础组件。
+结合了对话历史记忆和文档检索功能，用于构建能够记住上下文的问答系统，也是本项目中使用到的链。在 `LangChain.js` 最新版本中，使用 `createRetrievalChain` 和 `createStuffDocumentsChain` 函数构建这种链：
 
 ```javascript
-import { LLMChain } from "langchain/chains";
-import { PromptTemplate } from "@langchain/core/prompts";
-
-const prompt = PromptTemplate.fromTemplate(
-  "请为{product}写一个简短的产品描述，面向{audience}用户"
-);
-
-const chain = new LLMChain({
-  llm: model,
-  prompt: prompt
-});
-
-const result = await chain.invoke({
-  product: "智能音箱",
-  audience: "年轻人"
-});
-```
-
-#### ConversationalRetrievalChain - 融合记忆的对话检索链
-
-结合了对话历史记忆和文档检索功能，用于构建能够记住上下文的问答系统，也是本项目中使用到的链。
-
-```javascript
-import { ConversationalRetrievalChain } from "langchain/chains";
+import { createRetrievalChain } from "langchain/chains/retrieval";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { BufferMemory } from "langchain/memory";
 
+// 创建记忆实例
 const memory = new BufferMemory({
   memoryKey: "chat_history",
   returnMessages: true,
@@ -306,10 +214,18 @@ const memory = new BufferMemory({
   outputKey: "text",
 });
 
-const chain = new ConversationalRetrievalChain({
+// 创建文档合并链
+const documentChain = await createStuffDocumentsChain({
+  llm,
+  prompt: PromptTemplate.fromTemplate(qaTemplate),
+});
+
+// 创建检索链
+const chain = createRetrievalChain({
   retriever: vectorStore.asRetriever(),
-  memory: memory,
-  combineDocumentsChain: loadQAStuffChain(model),
+  combineDocsChain: documentChain,
+  memory,
+  returnSourceDocuments: true,
 });
 
 // 首次查询
@@ -392,7 +308,101 @@ const result = await chain.invoke({
 });
 ```
 
-这些链可以根据实际需求组合使用，`LangChain.js` 的强大之处就在于它提供了高度模块化的组件，使开发者能够灵活构建各种复杂的LLM应用。在本项目中，我们主要使用了 `RetrievalQAChain` 来实现基于知识库的问答功能，结合 `BufferMemory` 实现多轮对话能力。
+以下是 `LangChain.js` 中其他常用的链类型，可以根据不同需求选择使用：
+
+#### LLMChain - 最基础的提示词处理链
+
+将提示模板与语言模型结合的最基础链，是许多其他链的基础组件。
+
+```javascript
+import { LLMChain } from "langchain/chains";
+import { PromptTemplate } from "@langchain/core/prompts";
+
+const prompt = PromptTemplate.fromTemplate(
+  "请为{product}写一个简短的产品描述，面向{audience}用户"
+);
+
+const chain = new LLMChain({
+  llm: model,
+  prompt: prompt
+});
+
+const result = await chain.invoke({
+  product: "智能音箱",
+  audience: "年轻人"
+});
+```
+
+#### RetrievalQAChain - 基础检索问答链
+
+用于从向量存储中检索文档并生成答案：
+
+```javascript
+// 从server/services/queryService.js的实际实现
+import { RetrievalQAChain, loadQAStuffChain } from "langchain/chains";
+
+/**
+ * 创建问答链
+ */
+export async function createQAChain(
+  llm,
+  vectorStore,
+  promptTemplate,
+  sessionId
+) {
+  // 获取历史记录
+  let historyText = "";
+  if (sessionId) {
+    try {
+      historyText = await getFormattedHistory(sessionId);
+    } catch (error) {
+      console.error("获取历史记录失败:", error);
+    }
+  }
+
+  // 默认提示模板
+  let template;
+  if (sessionId && historyText) {
+    // 带上下文的提示模板
+    template =
+      promptTemplate ||
+      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
+
+信息:
+{context}
+
+对话历史:
+${historyText}
+
+用户问题: {question}
+
+请用中文简明扼要地回答:`;
+  } else {
+    // 无上下文的提示模板
+    template =
+      promptTemplate ||
+      `请根据以下信息回答用户的问题。如果无法从提供的信息中找到答案，请明确告知您不知道，不要编造信息。
+
+信息:
+{context}
+
+用户问题: {question}
+
+请用中文简明扼要地回答:`;
+  }
+
+  const PROMPT = PromptTemplate.fromTemplate(template);
+
+  // 创建问答链
+  return new RetrievalQAChain({
+    combineDocumentsChain: loadQAStuffChain(llm, { prompt: PROMPT }),
+    retriever: vectorStore.asRetriever(),
+    returnSourceDocuments: true,
+  });
+}
+```
+
+这些链可以根据实际需求组合使用，`LangChain.js` 的强大之处就在于它提供了高度模块化的组件，使开发者能够灵活构建各种复杂的LLM应用。在本项目中，我们主要使用了 `RetrievalChain` 来实现基于知识库的问答功能，结合 `BufferMemory` 实现多轮对话能力。
 
 ### 6. 代理（Agents）
 
@@ -880,7 +890,7 @@ export async function splitDocuments(documents, chunkSize = 1000, chunkOverlap =
 }
 ```
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/5a60f487903b4c5a85cc686662c5ddd6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=5JvPxi%2FwuQJEwmB2ykF36yiIwts%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/5a60f487903b4c5a85cc686662c5ddd6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=%2BE25CUdz3GZ3z%2BzQykC%2FczF2k6w%3D)
 
 ### 2. 向量存储
 
@@ -1000,7 +1010,7 @@ export async function similaritySearch(
 
 在 [硅基流动](https://cloud.siliconflow.cn/models?types=embedding) 中选择一个适合的嵌入模型
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/fb9df0d8ee8744e6987a67171549e9f3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=61VPHI9lF%2B5sgaOSjD3neg%2BVXKk%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/fb9df0d8ee8744e6987a67171549e9f3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=H%2FxAYDAy7I%2F0KzgqnNOV0%2F7Pp1c%3D)
 
 `embeddings.js` 负责将文本转换为向量：
 
@@ -1116,13 +1126,13 @@ export function createEmbeddingModel() {
 
 BGEEmbeddings实现了批量处理功能，通过将大量文本分批处理，有效避免API限制和内存问题，提高了系统的稳定性和扩展性。
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/160d0f4d73b742d3bbaab7193de8f4f6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=KbMT9BfyMC1MaMVh%2F8jKHFkZrNQ%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/160d0f4d73b742d3bbaab7193de8f4f6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=ZNz%2Fn41FcljKJ47PRGG8Nk2Wc78%3D)
 
 ### 4. 会话记忆
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/5021a1ba41704cdd945e02645bf7092c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=30nhQKC4zHzenfvSe%2BU23SRzVxA%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/5021a1ba41704cdd945e02645bf7092c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=J9d4pBGlzQe3X9%2BRxC1SN4p9WY8%3D)
 
-`memoryService.js`实现了对话历史的记忆功能，使用 LangChain 的 BufferMemory：
+`memoryService.js`实现了对话历史的记忆功能，使用 `LangChain` 的 `BufferMemory` 与 `ConversationalRetrievalChain`：
 
 ```javascript
 // server/services/memoryService.js
@@ -1200,7 +1210,7 @@ export async function addToMemory(sessionId, humanInput, aiOutput) {
 
 能够自动存储到 `localStorage` 中，便于查看与调试：
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d1c684af308f4a05a1fbec19f57d15c3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=hGyLDjoM7qZ%2FAMu%2F29c0V8QFMmk%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d1c684af308f4a05a1fbec19f57d15c3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=PnW4jW6k05ph%2FTq9CQnbyJmhD38%3D)
 
 会话记忆是智能客服系统的关键组件，使AI能够理解多轮对话的上下文，从而提供连贯、个性化的回复。在本项目中，我们采用LangChain内置的BufferMemory组件，它提供了以下优势：
 
@@ -1290,146 +1300,38 @@ export async function createQAChain(
  * 执行查询
  */
 export async function executeQuery(query, options) {
-  const {
-    vectorStorePath,
-    similarityThreshold = 0.6,
-    useGeneralModelFallback = true,
-    useWebSearch = false,
-    sessionId = null,
-  } = options;
+  // ... existing code ...
 
-  try {
-    // 加载向量存储
-    const embeddings = createEmbeddingModel();
-    const vectorStore = await loadVectorStore(vectorStorePath, embeddings);
-    const llm = createChatModel(options.apiKey, options.modelName, options.apiEndpoint);
+  // 有结果，使用问答链
+  console.log(`找到 ${searchResults.length} 个相关文档，执行LangChain问答链...`);
+  const chain = await createQAChain(llm, vectorStore, null, sessionId);
 
-    // 搜索相关文档
-    const searchResults = await similaritySearch(
-      vectorStore,
-      query,
-      4,
-      similarityThreshold
-    );
+  // 使用新的invoke方法调用链
+  const result = await chain.invoke({
+    question: truncatedQuery,
+  });
 
-    // 如果没有找到相似度足够高的文档
-    if (searchResults.length === 0) {
-      console.log("未找到相似度足够高的文档");
+  console.log("LangChain查询完成");
 
-      // 如果开启了网络搜索
-      if (useWebSearch) {
-        console.log("使用网络搜索获取答案");
-        const webSearchResult = await getAnswerFromWebSearch(query);
+  // 从结果中获取text和sourceDocuments，兼容新版本的返回格式
+  const answerText = result.answer || result.text || result.output || result;
+  const sourceDocuments = result.sourceDocuments || [];
 
-        // 更新会话记忆
-        if (sessionId) {
-          const answer = webSearchResult.output || webSearchResult.answer;
-          if (answer) {
-            await addToMemory(sessionId, query, answer);
-          }
-        }
+  // ... existing code ...
 
-        return {
-          answer: webSearchResult.output || webSearchResult.answer,
-          sources: [],
-          searchResults: webSearchResult.searchResults,
-          usedGeneralModel: false,
-          usedWebSearch: true,
-        };
-      }
-      // 如果开启了通用模型回退
-      else if (useGeneralModelFallback) {
-        console.log("使用通用模型回答问题");
-        const generalAnswer = await queryGeneralModel(query, llm, sessionId);
-
-        return {
-          answer: generalAnswer,
-          sources: [],
-          searchResults: [],
-          usedGeneralModel: true,
-          usedWebSearch: false,
-        };
-      }
-      // 如果既不使用网络搜索也不使用通用模型
-      else {
-        return {
-          answer: "抱歉，我在知识库中没有找到与您问题相关的信息。",
-          sources: [],
-          searchResults: [],
-          usedGeneralModel: false,
-          usedWebSearch: false,
-        };
-      }
-    }
-
-    // 有结果，使用问答链
-    console.log(`找到 ${searchResults.length} 个相关文档，执行LangChain问答链...`);
-    const chain = await createQAChain(llm, vectorStore, null, sessionId);
-
-    // 使用新的invoke方法调用链
-    const result = await chain.invoke({
-      question: query,
-    });
-
-    console.log("LangChain查询完成");
-
-    // 从结果中获取text和sourceDocuments，兼容新版本的返回格式
-    const answerText = result.answer || result.text || result.output || result;
-    const sourceDocuments = result.sourceDocuments || [];
-    
-    console.log(`找到的源文档数量: ${sourceDocuments.length || 0}`);
-
-    // 去重相同源文件的文档，只保留相似度最高的
-    const uniqueSources = new Map();
-
-    searchResults.forEach(([doc, score]) => {
-      const source = doc.metadata.source;
-      // 如果是首次出现这个源，或者比之前的相似度更高，则保存
-      if (
-        !uniqueSources.has(source) ||
-        score > uniqueSources.get(source).score
-      ) {
-        uniqueSources.set(source, {
-          content: doc.pageContent.substring(0, 150) + "...",
-          similarity: score,
-        });
-      }
-    });
-
-    // 转换为数组格式返回给前端
-    const sources = Array.from(uniqueSources.entries()).map(
-      ([source, data]) => {
-        // 这里直接使用metadata中保存的原始文件名作为source
-        // documentRoutes.js中存储文档时，已将原始文件名保存到metadata
-        return {
-          content: data.content,
-          source: source, // 这是原始文件名
-          similarity: data.similarity.toFixed(2),
-        };
-      }
-    );
-
-    // 按相似度降序排序
-    sources.sort((a, b) => b.similarity - a.similarity);
-
-    // createRetrievalChain已自动处理记忆保存，不需要手动更新
-
-    return {
-      answer: answerText,
-      sources: sources,
-      usedGeneralModel: false,
-      usedWebSearch: false,
-    };
-  } catch (error) {
-    console.error("执行查询失败:", error);
-    throw error;
-  }
+  // createRetrievalChain已自动处理记忆保存，不需要手动更新
+  return {
+    answer: answerText,
+    sources: sources,
+    usedGeneralModel: false,
+    usedWebSearch: false,
+  };
 }
 ```
 
 ### 6. 网络搜索
 
-![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d123ab26fd3243a6a346f198e424e79d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177654&x-orig-sign=nZIPkBMIy8MGCx1XOoU242p6Owk%3D)
+![image.png](https://p0-xtjj-private.juejin.cn/tos-cn-i-73owjymdk6/d123ab26fd3243a6a346f198e424e79d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgX2ppYW5n:q75.awebp?policy=eyJ2bSI6MywidWlkIjoiODYyNDg3NTIyMzE0MzY2In0%3D&rk3s=f64ab15b&x-orig-authkey=f32326d3454f2ac7e96d3d06cdbb035152127018&x-orig-expires=1748177853&x-orig-sign=n9bdYemOvz58VhBDsfgFKP1XIGs%3D)
 
 请提前在 [serper](https://serper.dev/) 自行申请一个 `apikey`
 
